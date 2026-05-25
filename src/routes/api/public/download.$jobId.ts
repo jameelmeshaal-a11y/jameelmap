@@ -7,17 +7,19 @@ export const Route = createFileRoute("/api/public/download/$jobId")({
   server: {
     handlers: {
       GET: async ({ params }) => {
+        try {
         const jobId = params.jobId;
         if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
           return new Response("Invalid job id", { status: 400 });
         }
 
-        const { data: job } = await supabaseAdmin
+        const { data: job, error: jobErr } = await supabaseAdmin
           .from("scrape_jobs")
           .select("country, activity, status")
           .eq("id", jobId)
-          .single();
+          .maybeSingle();
 
+        if (jobErr) return new Response(`DB error: ${jobErr.message}`, { status: 500 });
         if (!job) return new Response("Job not found", { status: 404 });
 
         const { data: rows } = await supabaseAdmin
