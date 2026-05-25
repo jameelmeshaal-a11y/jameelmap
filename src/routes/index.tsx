@@ -29,7 +29,13 @@ function HomePage() {
   const statusFn = useServerFn(getJobStatus);
 
   const startMut = useMutation({
-    mutationFn: (vars: { country: string; activity: string }) => startFn({ data: vars }),
+    mutationFn: async (vars: { country: string; activity: string }) => {
+      const res = await startFn({ data: vars });
+      // أطلق المهمة فعلياً عبر مسار يبقى الاتصال مفتوحاً حتى الانتهاء
+      // لا ننتظر — المتصفح يحافظ على Worker حياً تلقائياً
+      void fetch(`/api/public/run-job/${res.jobId}`, { method: "POST" }).catch(() => {});
+      return res;
+    },
     onSuccess: (res) => setJobId(res.jobId),
   });
 
