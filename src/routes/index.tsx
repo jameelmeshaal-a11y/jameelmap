@@ -62,7 +62,7 @@ function HomePage() {
         className="relative overflow-hidden text-primary-foreground"
         style={{ background: "var(--gradient-hero)" }}
       >
-        <div className="container mx-auto px-6 py-14 text-center">
+        <div className="container mx-auto px-6 pt-14 pb-28 text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium backdrop-blur">
             <Sparkles className="h-4 w-4" />
             <span>منصة استخراج بيانات الأماكن</span>
@@ -74,8 +74,8 @@ function HomePage() {
         </div>
       </header>
 
-      <section className="container mx-auto -mt-10 max-w-3xl px-4 pb-16">
-        <Card className="p-6 shadow-[var(--shadow-elegant)]">
+      <section className="container mx-auto -mt-20 max-w-3xl px-4 pb-16">
+        <Card className="p-6 pt-7 shadow-[var(--shadow-elegant)]">
           <form
             onSubmit={(e) => {
               e.preventDefault();
