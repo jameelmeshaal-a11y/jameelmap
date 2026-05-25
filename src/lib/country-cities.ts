@@ -71,9 +71,9 @@ export const COUNTRY_CITIES: Record<string, string[]> = {
 
 // خرائط اسماء مختلفة → مفتاح موحد
 const ALIASES: Record<string, string> = {
-  "usa":"USA","united states":"USA","united states of america":"USA","us":"USA","america":"USA","أمريكا":"USA","امريكا":"USA","الولايات المتحدة":"USA",
-  "ksa":"KSA","saudi arabia":"KSA","saudi":"KSA","السعودية":"KSA","المملكة العربية السعودية":"KSA",
-  "uae":"UAE","emirates":"UAE","united arab emirates":"UAE","الإمارات":"UAE","الامارات":"UAE",
+  "usa":"USA","united states":"USA","united states of america":"USA","us":"USA","america":"USA","أمريكا":"USA","امريكا":"USA","الولايات المتحدة":"USA","الولايات المتحدة الامريكية":"USA","الولايات المتحدة الأمريكية":"USA","امريكيا":"USA",
+  "ksa":"KSA","saudi arabia":"KSA","saudi":"KSA","السعودية":"KSA","المملكة العربية السعودية":"KSA","المملكه العربيه السعوديه":"KSA",
+  "uae":"UAE","emirates":"UAE","united arab emirates":"UAE","الإمارات":"UAE","الامارات":"UAE","الامارات العربية المتحدة":"UAE",
   "egypt":"EGYPT","مصر":"EGYPT",
   "uk":"UK","united kingdom":"UK","britain":"UK","england":"UK","بريطانيا":"UK","المملكة المتحدة":"UK","انجلترا":"UK",
   "canada":"CANADA","كندا":"CANADA",
@@ -104,9 +104,43 @@ const ALIASES: Record<string, string> = {
   "australia":"AUSTRALIA","أستراليا":"AUSTRALIA","استراليا":"AUSTRALIA",
 };
 
+// تطبيع النص العربي والإنجليزي للمطابقة المرنة
+function normalize(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+// بناء فهرس مطبّع مرة واحدة
+const NORMALIZED_ALIASES: Record<string, string> = {};
+for (const [k, v] of Object.entries(ALIASES)) {
+  NORMALIZED_ALIASES[normalize(k)] = v;
+}
+
 export function resolveCities(countryInput: string): { key: string | null; cities: string[]; rawCountry: string } {
   const raw = countryInput.trim();
-  const key = ALIASES[raw.toLowerCase()] ?? null;
+  const norm = normalize(raw);
+
+  // 1) مطابقة مباشرة
+  let key = NORMALIZED_ALIASES[norm] ?? null;
+
+  // 2) مطابقة جزئية (يحتوي على اسم معروف)
+  if (!key) {
+    for (const [aliasNorm, code] of Object.entries(NORMALIZED_ALIASES)) {
+      if (aliasNorm.length >= 3 && (norm.includes(aliasNorm) || aliasNorm.includes(norm))) {
+        key = code;
+        break;
+      }
+    }
+  }
+
   if (key && COUNTRY_CITIES[key]) {
     return { key, cities: COUNTRY_CITIES[key], rawCountry: raw };
   }
