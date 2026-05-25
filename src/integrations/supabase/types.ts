@@ -62,45 +62,66 @@ export type Database = {
           category: string | null
           city: string | null
           created_at: string
+          email: string | null
+          facebook: string | null
           id: string
+          instagram: string | null
           job_id: string
           maps_url: string | null
           name: string | null
           phone: string | null
           place_id: string
+          snapchat: string | null
           state: string | null
+          tiktok: string | null
+          twitter: string | null
           website: string | null
           whatsapp: string | null
+          youtube: string | null
         }
         Insert: {
           address?: string | null
           category?: string | null
           city?: string | null
           created_at?: string
+          email?: string | null
+          facebook?: string | null
           id?: string
+          instagram?: string | null
           job_id: string
           maps_url?: string | null
           name?: string | null
           phone?: string | null
           place_id: string
+          snapchat?: string | null
           state?: string | null
+          tiktok?: string | null
+          twitter?: string | null
           website?: string | null
           whatsapp?: string | null
+          youtube?: string | null
         }
         Update: {
           address?: string | null
           category?: string | null
           city?: string | null
           created_at?: string
+          email?: string | null
+          facebook?: string | null
           id?: string
+          instagram?: string | null
           job_id?: string
           maps_url?: string | null
           name?: string | null
           phone?: string | null
           place_id?: string
+          snapchat?: string | null
           state?: string | null
+          tiktok?: string | null
+          twitter?: string | null
           website?: string | null
           whatsapp?: string | null
+          youtube?: string | null
         }
         Relationships: [
           {
