@@ -105,6 +105,23 @@ async function searchCity(activity: string, city: string): Promise<PlaceResult[]
 }
 
 export async function runScrapeJob(jobId: string, country: string, activity: string): Promise<void> {
+  // فحص مسبق للمفاتيح — لا فائدة من الاستمرار بدونها
+  if (!process.env.LOVABLE_API_KEY || !process.env.GOOGLE_MAPS_API_KEY) {
+    const missing = [
+      !process.env.LOVABLE_API_KEY && "LOVABLE_API_KEY",
+      !process.env.GOOGLE_MAPS_API_KEY && "GOOGLE_MAPS_API_KEY",
+    ].filter(Boolean).join(", ");
+    await supabaseAdmin
+      .from("scrape_jobs")
+      .update({
+        status: "failed",
+        error_message: `موصل Google Maps Platform غير مربوط بالمشروع. مفاتيح ناقصة: ${missing}. يجب ربط الموصل من إعدادات المشروع.`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", jobId);
+    return;
+  }
+
   const { cities } = resolveCities(country);
 
   await supabaseAdmin
@@ -114,6 +131,8 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
 
   const seen = new Set<string>();
   let totalSaved = 0;
+  let failedCities = 0;
+  let lastError = "";
 
   try {
     for (let i = 0; i < cities.length; i++) {
@@ -127,6 +146,8 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
       try {
         cityResults = await searchCity(activity, city);
       } catch (err) {
+        failedCities++;
+        lastError = err instanceof Error ? err.message : String(err);
         console.error(`City failed: ${city}`, err);
         continue;
       }
@@ -165,6 +186,23 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         .eq("id", jobId);
     }
 
+    // لو فشلت كل المدن أو معظمها — لا تخفِ المشكلة
+    const allFailed = failedCities === cities.length;
+    const mostlyFailed = failedCities > 0 && totalSaved === 0;
+
+    if (allFailed || mostlyFailed) {
+      await supabaseAdmin
+        .from("scrape_jobs")
+        .update({
+          status: "failed",
+          current_city: "",
+          error_message: `فشلت ${failedCities} من ${cities.length} مدينة. آخر خطأ: ${lastError || "غير معروف"}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+      return;
+    }
+
     await supabaseAdmin
       .from("scrape_jobs")
       .update({
@@ -172,6 +210,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         current_city: "",
         cities_done: cities.length,
         results_count: totalSaved,
+        error_message: failedCities > 0 ? `تنبيه: فشلت ${failedCities} مدينة` : "",
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
