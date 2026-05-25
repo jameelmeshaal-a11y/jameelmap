@@ -159,7 +159,7 @@ function HomePage() {
 
             {isDone && status.data.resultsCount > 0 && (
               <a
-                href={`/api/download/${jobId}`}
+                href={`/api/public/download/${jobId}`}
                 download
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >

@@ -1,13 +1,74 @@
 // قائمة أكبر مدن لكل دولة. المفاتيح بأشكال متعددة (عربي/إنجليزي/كود) لمرونة الإدخال.
 
+// كلمات بحث للمساجد (عربي + إنجليزي) — لرفع التغطية في كل مدينة
+export const MOSQUE_KEYWORDS = [
+  "Mosque", "Masjid", "Islamic Center", "Muslim Community Center",
+  "Jami Masjid", "Jamia Masjid", "مسجد", "Islamic Society",
+  "Islamic Association", "Muslim Prayer", "Musalla",
+];
+
+// كشف ما إذا كان النشاط متعلقاً بالمساجد (يستخدم القائمة الموسّعة)
+export function isMosqueActivity(activity: string): boolean {
+  const a = activity.trim().toLowerCase();
+  return /mosque|masjid|islamic|muslim|musalla|مسجد|اسلام|إسلام|مصلى/i.test(a);
+}
+
 export const COUNTRY_CITIES: Record<string, string[]> = {
   USA: [
-    "New York, NY","Los Angeles, CA","Chicago, IL","Houston, TX","Phoenix, AZ",
-    "Philadelphia, PA","San Antonio, TX","San Diego, CA","Dallas, TX","San Jose, CA",
-    "Austin, TX","Jacksonville, FL","Fort Worth, TX","Columbus, OH","Charlotte, NC",
-    "San Francisco, CA","Indianapolis, IN","Seattle, WA","Denver, CO","Washington, DC",
-    "Boston, MA","Detroit, MI","Nashville, TN","Memphis, TN","Atlanta, GA",
-    "Miami, FL","Minneapolis, MN","Dearborn, MI","Brooklyn, NY","Paterson, NJ",
+    // Northeast
+    "New York, NY","Brooklyn, NY","Queens, NY","Bronx, NY","Buffalo, NY",
+    "Newark, NJ","Jersey City, NJ","Paterson, NJ","Trenton, NJ","Clifton, NJ",
+    "Philadelphia, PA","Pittsburgh, PA","Allentown, PA",
+    "Boston, MA","Worcester, MA","Springfield, MA",
+    "Providence, RI","Hartford, CT","Bridgeport, CT",
+    "Manchester, NH","Portland, ME","Burlington, VT",
+    // Mid-Atlantic & DC Metro
+    "Washington, DC","Baltimore, MD","Silver Spring, MD",
+    "Arlington, VA","Alexandria, VA","Falls Church, VA","Richmond, VA",
+    "Wilmington, DE",
+    // Southeast
+    "Atlanta, GA","Augusta, GA","Columbus, GA",
+    "Charlotte, NC","Raleigh, NC","Durham, NC","Greensboro, NC",
+    "Columbia, SC","Charleston, SC",
+    "Jacksonville, FL","Miami, FL","Orlando, FL","Tampa, FL",
+    "St. Petersburg, FL","Fort Lauderdale, FL","Boca Raton, FL",
+    "Nashville, TN","Memphis, TN","Knoxville, TN",
+    "Louisville, KY","Lexington, KY",
+    "Birmingham, AL","Montgomery, AL",
+    "Jackson, MS","Little Rock, AR",
+    // Midwest
+    "Chicago, IL","Aurora, IL","Rockford, IL","Naperville, IL","Bridgeview, IL",
+    "Detroit, MI","Dearborn, MI","Dearborn Heights, MI","Hamtramck, MI",
+    "Grand Rapids, MI","Warren, MI","Sterling Heights, MI",
+    "Columbus, OH","Cleveland, OH","Cincinnati, OH","Toledo, OH","Akron, OH",
+    "Indianapolis, IN","Fort Wayne, IN",
+    "Milwaukee, WI","Madison, WI",
+    "Minneapolis, MN","St. Paul, MN",
+    "Kansas City, MO","St. Louis, MO",
+    "Omaha, NE","Lincoln, NE",
+    "Des Moines, IA","Sioux Falls, SD","Fargo, ND",
+    // South & Texas
+    "Houston, TX","San Antonio, TX","Dallas, TX","Austin, TX",
+    "Fort Worth, TX","El Paso, TX","Plano, TX","Irving, TX",
+    "Garland, TX","Frisco, TX","Richardson, TX",
+    "New Orleans, LA","Baton Rouge, LA",
+    "Oklahoma City, OK","Tulsa, OK",
+    // Mountain West
+    "Denver, CO","Colorado Springs, CO","Aurora, CO",
+    "Phoenix, AZ","Tucson, AZ","Mesa, AZ","Scottsdale, AZ","Tempe, AZ",
+    "Salt Lake City, UT","Provo, UT",
+    "Albuquerque, NM","Santa Fe, NM",
+    "Las Vegas, NV","Henderson, NV","Reno, NV",
+    "Boise, ID","Billings, MT","Cheyenne, WY",
+    // Pacific West
+    "Los Angeles, CA","San Diego, CA","San Jose, CA","San Francisco, CA",
+    "Fresno, CA","Sacramento, CA","Long Beach, CA","Oakland, CA",
+    "Anaheim, CA","Riverside, CA","Santa Ana, CA","Irvine, CA",
+    "Chino, CA","Garden Grove, CA","Pomona, CA","Fremont, CA",
+    "Seattle, WA","Spokane, WA","Tacoma, WA",
+    "Portland, OR","Eugene, OR",
+    // HI/AK
+    "Honolulu, HI","Anchorage, AK",
   ],
   KSA: [
     "Riyadh","Jeddah","Mecca","Medina","Dammam","Khobar","Dhahran","Taif","Tabuk",

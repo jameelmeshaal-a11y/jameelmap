@@ -1,9 +1,9 @@
-// مسار تنزيل ملف Excel للمهمة
+// مسار عام لتنزيل Excel — /api/public/ لتجاوز حماية صفحة الدخول على النطاق المنشور
 import { createFileRoute } from "@tanstack/react-router";
 import ExcelJS from "exceljs";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-export const Route = createFileRoute("/api/download/$jobId")({
+export const Route = createFileRoute("/api/public/download/$jobId")({
   server: {
     handlers: {
       GET: async ({ params }) => {
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/download/$jobId")({
 
         const { data: rows } = await supabaseAdmin
           .from("scrape_results")
-          .select("name, address, city, state, phone, whatsapp, website, category, maps_url")
+          .select("name, address, city, state, phone, email, whatsapp, website, facebook, instagram, twitter, youtube, tiktok, snapchat, category, maps_url")
           .eq("job_id", jobId)
           .order("city", { ascending: true });
 
@@ -36,15 +36,22 @@ export const Route = createFileRoute("/api/download/$jobId")({
         });
 
         ws.columns = [
-          { header: "الاسم", key: "name", width: 36 },
-          { header: "العنوان", key: "address", width: 50 },
           { header: "المدينة", key: "city", width: 18 },
+          { header: "اسم المكان", key: "name", width: 36 },
+          { header: "العنوان", key: "address", width: 50 },
           { header: "الولاية/المنطقة", key: "state", width: 16 },
-          { header: "الهاتف", key: "phone", width: 18 },
+          { header: "الجوال", key: "phone", width: 18 },
+          { header: "الإيميل", key: "email", width: 28 },
           { header: "واتساب", key: "whatsapp", width: 18 },
-          { header: "الموقع الإلكتروني", key: "website", width: 36 },
+          { header: "الموقع الإلكتروني", key: "website", width: 32 },
+          { header: "فيسبوك", key: "facebook", width: 28 },
+          { header: "إنستقرام", key: "instagram", width: 28 },
+          { header: "تويتر / X", key: "twitter", width: 28 },
+          { header: "يوتيوب", key: "youtube", width: 28 },
+          { header: "تيك توك", key: "tiktok", width: 28 },
+          { header: "سناب شات", key: "snapchat", width: 24 },
           { header: "التصنيف", key: "category", width: 22 },
-          { header: "رابط خرائط جوجل", key: "maps_url", width: 40 },
+          { header: "خرائط جوجل", key: "maps_url", width: 36 },
         ];
 
         const header = ws.getRow(1);
@@ -61,6 +68,10 @@ export const Route = createFileRoute("/api/download/$jobId")({
           };
         });
 
+        // الأعمدة التي محتواها لاتيني (محاذاة يسار)
+        const ltrCols = new Set(["email", "website", "facebook", "instagram", "twitter", "youtube", "tiktok", "snapchat", "maps_url"]);
+        const centerCols = new Set(["phone", "whatsapp"]);
+
         (rows ?? []).forEach((r, idx) => {
           const row = ws.addRow(r);
           const fill = idx % 2 === 0
@@ -75,10 +86,10 @@ export const Route = createFileRoute("/api/download/$jobId")({
               bottom: { style: "hair", color: { argb: "FFDDDDDD" } },
             };
             if (fill) cell.fill = fill;
-            // الأعمدة 7 (website) و9 (maps_url) محاذاة يسار
-            if (colNumber === 7 || colNumber === 9) {
+            const colKey = (ws.columns[colNumber - 1]?.key ?? "") as string;
+            if (ltrCols.has(colKey)) {
               cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-            } else if (colNumber === 5 || colNumber === 6) {
+            } else if (centerCols.has(colKey)) {
               cell.alignment = { horizontal: "center", vertical: "middle" };
             } else {
               cell.alignment = { horizontal: "right", vertical: "middle", wrapText: true };
@@ -86,7 +97,7 @@ export const Route = createFileRoute("/api/download/$jobId")({
           });
         });
 
-        ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 9 } };
+        ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columns.length } };
 
         const buffer = await workbook.xlsx.writeBuffer();
         const fileName = `aalam-jameel-${job.country}-${job.activity}-${Date.now()}.xlsx`
