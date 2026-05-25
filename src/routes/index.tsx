@@ -74,8 +74,8 @@ function HomePage() {
         </div>
       </header>
 
-      <section className="container mx-auto -mt-20 max-w-3xl px-4 pb-16">
-        <Card className="p-6 pt-7 shadow-[var(--shadow-elegant)]">
+      <section className="container mx-auto mt-8 max-w-3xl px-4 pb-16">
+        <Card className="p-6 shadow-[var(--shadow-elegant)]">
           <form
             onSubmit={(e) => {
               e.preventDefault();
