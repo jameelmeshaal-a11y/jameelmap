@@ -11,7 +11,6 @@ export const startScrape = createServerFn({ method: "POST" })
   .inputValidator((data) => StartInput.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { runScrapeJob } = await import("@/lib/scrape-engine.server");
 
     const { data: job, error } = await supabaseAdmin
       .from("scrape_jobs")
@@ -20,14 +19,7 @@ export const startScrape = createServerFn({ method: "POST" })
       .single();
 
     if (error || !job) throw new Error(`Failed to create job: ${error?.message}`);
-
-    // إطلاق المهمة في الخلفية (Cloudflare Workers يدعم async بدون await)
-    // لكن لضمان التنفيذ، نستخدم waitUntil-style: نطلقها ولا ننتظر
-    runScrapeJob(job.id, data.country, data.activity).catch((e) => {
-      console.error("Background job failed:", e);
-    });
-
-    return { jobId: job.id };
+    return { jobId: job.id as string };
   });
 
 export const getJobStatus = createServerFn({ method: "GET" })
