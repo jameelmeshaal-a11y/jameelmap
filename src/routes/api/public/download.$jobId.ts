@@ -110,8 +110,14 @@ export const Route = createFileRoute("/api/public/download/$jobId")({
             "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "Content-Disposition": `attachment; filename="${fileName}"`,
             "Cache-Control": "no-store",
+            "Access-Control-Allow-Origin": "*",
           },
         });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[download] failed:", msg);
+          return new Response(`Download failed: ${msg}`, { status: 500 });
+        }
       },
     },
   },
