@@ -1,45 +1,121 @@
-## السبب الحقيقي للمشكلة
+## المشاكل الثلاث وحلولها الجذرية
 
-فحصت كل شيء — البيانات لا تكذب:
+### 1. مشكلة تنزيل Excel — تطلب تسجيل دخول
 
-1. **المهمة السابقة** اكتملت بـ 30/30 مدينة و **0 نتائج**، وبدون أي رسالة خطأ.
-2. فحصت متغيرات البيئة في الخادم: `GOOGLE_MAPS_API_KEY` **غير موجود إطلاقاً**.
-3. فحصت الموصلات المربوطة في الـ workspace: لا يوجد موصل Google Maps أبداً — فقط Firecrawl و Stripe.
+**السبب الحقيقي:** المسار `/api/download/$jobId` ليس تحت `/api/public/`، فعلى النطاق المنشور (`jameelmap.lovable.app`) تحجبه طبقة الحماية الافتراضية وتُحوّل المستخدم لصفحة دخول Lovable.
 
-**ما الذي يحدث فعلياً:**
-- كل مدينة من الثلاثين ترمي خطأ "GOOGLE_MAPS_API_KEY is not configured".
-- الكود في `scrape-engine.server.ts` يلتقط الخطأ لكل مدينة ويطبعه في الـ console فقط ثم يكمل.
-- بعد انتهاء الحلقة، يتم تعليم المهمة "completed ✅" حتى لو فشلت كل المدن.
-- النتيجة: شاشة خضراء تقول "مكتملة" مع 0 نتائج، بدون أي تلميح للمشكلة الحقيقية.
+**الحل:**
+- نقل الملف إلى `src/routes/api/public/download.$jobId.ts`
+- تحديث الرابط في `src/routes/index.tsx` إلى `/api/public/download/${jobId}`
 
-**لماذا لم أكتشف هذا قبل الآن:** كنت أفترض أن زر Connect نجح في المحاولات السابقة، لكنه لم يُربط فعلياً ولا مرة. اعتذر منك بصدق على إضاعة وقتك.
+### 2. سقف ~750 نتيجة — توسعة المدن + استعلامات متعددة
 
-## خطة الحل
+**السبب الحقيقي:** Google Places ترجع **60 نتيجة كحد أقصى** لكل استعلام نصي. مع 30 مدينة فقط × استعلام واحد = ~750 بعد إزالة المكرر. لا يمكن تجاوز هذا إلا بتكثيف الاستعلامات.
 
-### 1. كشف المشكلة قبل التشغيل (`scrape-engine.server.ts`)
-- فحص `GOOGLE_MAPS_API_KEY` و `LOVABLE_API_KEY` في بداية `runScrapeJob` قبل أي محاولة بحث.
-- لو ناقص → تعليم المهمة `failed` مباشرة برسالة عربية واضحة بدل المرور بـ 30 مدينة فاشلة بصمت.
+**سياسة موحّدة تُطبَّق على كل بحث مستقبلي:**
 
-### 2. عدم إخفاء الفشل الجماعي
-- تتبّع عدد المدن الفاشلة. لو فشلت **كل** المدن (أو > 80%) → تعليم المهمة `failed` بآخر رسالة خطأ من Google، بدلاً من "completed مع 0 نتائج".
+استبدال قائمة USA الحالية بالقائمة الشاملة التي قدّمتها (**~140 مدينة** تغطي 50 ولاية + نقاط تجمّع المسلمين الرئيسية):
 
-### 3. ربط موصل Google Maps Platform (الخطوة الجوهرية)
-- استدعاء `standard_connectors--connect` بـ `connector_id: google_maps`.
-- ستظهر لك نافذة في الشات. **يجب أن تختار "Lovable-managed" connection** (التي تستخدم مفتاح Lovable المُدار جاهزاً — لا تحتاج حساب Google Cloud).
-- بعد الموافقة سيُحقن `GOOGLE_MAPS_API_KEY` تلقائياً في بيئة الخادم.
+```
+Northeast: NYC, Brooklyn, Queens, Bronx, Buffalo, Newark, Jersey City,
+Paterson, Trenton, Philadelphia, Pittsburgh, Allentown, Boston, Worcester,
+Springfield, Providence, Hartford, Bridgeport, Manchester NH, Portland ME, Burlington VT
 
-### 4. اختبار حقيقي بعد الربط
-- تشغيل نفس المهمة (الولايات المتحدة الأمريكية / المساجد) عبر `invoke-server-function`.
-- التحقق من أن `results_count` > 100 على الأقل خلال 30 ثانية.
-- في حال فشلت — قراءة السبب الحقيقي وإصلاحه.
+Mid-Atlantic & DC: Washington DC, Baltimore, Silver Spring, Arlington,
+Alexandria, Falls Church, Richmond, Wilmington
 
-## ما لن أعدّه نجاحاً
+Southeast: Atlanta, Augusta, Columbus GA, Charlotte, Raleigh, Durham,
+Greensboro, Columbia SC, Charleston, Jacksonville, Miami, Orlando, Tampa,
+St. Petersburg, Fort Lauderdale, Boca Raton, Nashville, Memphis, Knoxville,
+Louisville, Lexington, Birmingham AL, Montgomery, Jackson MS, Little Rock
 
-لن أقول "تم الحل" حتى أرى نتائج فعلية في قاعدة البيانات (`SELECT count(*) FROM scrape_results WHERE job_id = ...`). كفى تخمين.
+Midwest: Chicago, Aurora IL, Rockford, Naperville, Detroit, Dearborn,
+Grand Rapids, Warren, Sterling Heights, Columbus OH, Cleveland, Cincinnati,
+Toledo, Akron, Indianapolis, Fort Wayne, Milwaukee, Madison, Minneapolis,
+St. Paul, Kansas City MO, St. Louis, Omaha, Lincoln, Des Moines, Sioux Falls, Fargo
 
-## ملاحظة مهمة لك
+South & Texas: Houston, San Antonio, Dallas, Austin, Fort Worth, El Paso,
+Plano, Irving, Garland, Frisco, Richardson, New Orleans, Baton Rouge,
+Oklahoma City, Tulsa
 
-عند ظهور نافذة Connect:
-- **اضغط Connect ولا تغلق النافذة**.
-- اختر الخيار المُدار (Lovable-managed) — لا يحتاج أي مفاتيح منك.
-- إذا اخترت "custom" سيطلب منك مفتاح API من Google Cloud Console — تجنّبه إن لم يكن لديك حساب جاهز.
+Mountain West: Denver, Colorado Springs, Aurora CO, Phoenix, Tucson, Mesa,
+Scottsdale, Tempe, Salt Lake City, Provo, Albuquerque, Santa Fe, Las Vegas,
+Henderson, Reno, Boise, Billings, Cheyenne
+
+Pacific West: LA, San Diego, San Jose, SF, Fresno, Sacramento, Long Beach,
+Oakland, Anaheim, Riverside, Santa Ana, Irvine, Chino, Garden Grove, Pomona,
+Seattle, Spokane, Tacoma, Portland OR, Eugene
+
+HI/AK: Honolulu, Anchorage
+
+Hotspots: Dearborn Heights, Hamtramck, Clifton NJ, Bridgeview IL, Fremont
+```
+
+**كلمات البحث الموحّدة للمساجد (11 صيغة):**
+```
+Mosque, Masjid, Islamic Center, Muslim Community Center, Jami Masjid,
+Jamia Masjid, مسجد, Islamic Society, Islamic Association, Muslim Prayer, Musalla
+```
+
+**المنطق في `scrape-engine.server.ts`:**
+- لكل مدينة × كل كلمة بحث ⇒ استعلام مستقل بصيغة `"{keyword} in {city}"`
+- إزالة المكرر بالـ `place_id` (الواحد يظهر مرات كثيرة)
+- النتائج المتوقعة لأمريكا/المساجد: **3000-4500** (يقترب من رقمك المرجعي)
+- رفع السقف الأعلى لـ **10,000** نتيجة
+
+**الوقت المتوقع:** ~140 مدينة × 11 كلمة × ~2ث = ~50 دقيقة (مع تأخير صفحات Google). نوازي 3 استعلامات بنفس الوقت ⇒ ~18 دقيقة فعلية.
+
+**سياسة عامة لأي بحث مستقبلي:** أي نشاط جديد (مدارس، مكتبات، مستشفيات…) يطبّق نفس المبدأ — قائمة مدن شاملة + 5-10 صيغ بحث مختلفة بالعربي والإنجليزي + إزالة المكرر بالـ `place_id`. لن نكتفي أبداً بصيغة واحدة لمدن قليلة.
+
+### 3. الحقول المطلوبة: إيميل + سوشيال — Google لا تعطيها
+
+**السبب:** Places API ترجع فقط: الاسم، العنوان، الهاتف، الموقع، خرائط جوجل.
+
+**الحل:** بعد جلب كل نتيجة فيها موقع إلكتروني، نزحف الموقع بـ **Firecrawl** (مربوط مسبقاً) لاستخراج:
+- إيميل (regex على النص و `mailto:`)
+- روابط Facebook / Instagram / Twitter/X / YouTube / TikTok / Snapchat / WhatsApp (regex على الـ links)
+
+**التكلفة الواقعية:**
+- كل مسجد فيه موقع = 1 رصيد Firecrawl. لأمريكا متوقع ~2000 موقع.
+- المساجد بلا موقع = حقول السوشيال تبقى فارغة (لا مصدر بديل قانوني).
+- موازاة 5 طلبات بنفس الوقت ⇒ زيادة ~15-20 دقيقة على وقت البحث.
+
+### 4. توسعة جدول `scrape_results`
+
+إضافة أعمدة:
+- `email TEXT DEFAULT ''`
+- `facebook TEXT DEFAULT ''`
+- `instagram TEXT DEFAULT ''`
+- `twitter TEXT DEFAULT ''`
+- `youtube TEXT DEFAULT ''`
+- `tiktok TEXT DEFAULT ''`
+- `snapchat TEXT DEFAULT ''`
+
+### 5. تحديث Excel بالترتيب المطلوب
+
+الأعمدة النهائية: المدينة | اسم المسجد | العنوان | الجوال | الإيميل | الواتساب | الموقع الإلكتروني | فيسبوك | إنستقرام | تويتر | يوتيوب | تيك توك | سناب شات | خرائط جوجل
+
+---
+
+## خطوات التنفيذ بالترتيب
+
+1. **migration**: إضافة الأعمدة الجديدة على `scrape_results`.
+2. تحديث `src/lib/country-cities.ts`: استبدال USA بالقائمة الشاملة (~140 مدينة)، وتعريف مصفوفة `MOSQUE_KEYWORDS` بالـ 11 صيغة.
+3. تعديل `scrape-engine.server.ts`:
+   - حلقة مزدوجة (مدينة × كلمة بحث) بدل واحدة، مع كشف تلقائي إن كان النشاط مسجد/mosque لاستخدام قائمة الـ 11 كلمة، وإلا صيغة المستخدم فقط.
+   - موازاة 3 استعلامات Google بنفس الوقت.
+   - دالة `enrichWithFirecrawl(website)` بالموازاة (5 معاً) للنتائج ذات الموقع.
+   - رفع السقف لـ 10,000.
+4. نقل ملف التنزيل إلى `src/routes/api/public/download.$jobId.ts` + تحديث الرابط + الأعمدة الجديدة في Excel.
+5. **الاختبار الفعلي قبل قول "تم":**
+   - تشغيل USA/mosque عبر `invoke-server-function`.
+   - متابعة `cities_done` و `results_count` للتأكد من التقدم.
+   - `SELECT count(*), count(email) FILTER (WHERE email<>''), count(*) FILTER (WHERE website<>'') FROM scrape_results WHERE job_id=...`
+   - تنزيل Excel من النطاق المنشور للتأكد من غياب redirect للوجن.
+   - لن أقول "تم" إلا بعد رؤية الأرقام.
+
+## ما لا أعدك به (صدق صريح)
+
+- 10,000 مسجد في أمريكا = غير موجودين فعلياً على Google. الواقعي 3000-4500 بهذه القائمة.
+- إيميل/سوشيال لكل مسجد = فقط للمساجد التي تذكرها في موقعها.
+- تيك توك لا يُجمَع من اسم المسجد مباشرة — فقط إذا كان مرتبطاً من موقع المسجد.
