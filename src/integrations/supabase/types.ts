@@ -14,7 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      scrape_jobs: {
+        Row: {
+          activity: string
+          cities_done: number
+          cities_total: number
+          country: string
+          created_at: string
+          current_city: string | null
+          error_message: string | null
+          id: string
+          results_count: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          activity: string
+          cities_done?: number
+          cities_total?: number
+          country: string
+          created_at?: string
+          current_city?: string | null
+          error_message?: string | null
+          id?: string
+          results_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          activity?: string
+          cities_done?: number
+          cities_total?: number
+          country?: string
+          created_at?: string
+          current_city?: string | null
+          error_message?: string | null
+          id?: string
+          results_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      scrape_results: {
+        Row: {
+          address: string | null
+          category: string | null
+          city: string | null
+          created_at: string
+          id: string
+          job_id: string
+          maps_url: string | null
+          name: string | null
+          phone: string | null
+          place_id: string
+          state: string | null
+          website: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          maps_url?: string | null
+          name?: string | null
+          phone?: string | null
+          place_id: string
+          state?: string | null
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          address?: string | null
+          category?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          maps_url?: string | null
+          name?: string | null
+          phone?: string | null
+          place_id?: string
+          state?: string | null
+          website?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scrape_results_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "scrape_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
