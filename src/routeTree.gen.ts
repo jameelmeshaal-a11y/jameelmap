@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LibraryRouteImport } from './routes/library'
+import { Route as BootstrapRouteImport } from './routes/bootstrap'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LibraryJobIdRouteImport } from './routes/library.$jobId'
 import { Route as ApiPublicDownloadAllRouteImport } from './routes/api/public/download-all'
@@ -17,9 +19,19 @@ import { Route as ApiPublicRunJobJobIdRouteImport } from './routes/api/public/ru
 import { Route as ApiPublicReenrichJobIdRouteImport } from './routes/api/public/reenrich.$jobId'
 import { Route as ApiPublicDownloadJobIdRouteImport } from './routes/api/public/download.$jobId'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BootstrapRoute = BootstrapRouteImport.update({
+  id: '/bootstrap',
+  path: '/bootstrap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -55,7 +67,9 @@ const ApiPublicDownloadJobIdRoute = ApiPublicDownloadJobIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bootstrap': typeof BootstrapRoute
   '/library': typeof LibraryRouteWithChildren
+  '/login': typeof LoginRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/api/public/download-all': typeof ApiPublicDownloadAllRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
@@ -64,7 +78,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bootstrap': typeof BootstrapRoute
   '/library': typeof LibraryRouteWithChildren
+  '/login': typeof LoginRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/api/public/download-all': typeof ApiPublicDownloadAllRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
@@ -74,7 +90,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bootstrap': typeof BootstrapRoute
   '/library': typeof LibraryRouteWithChildren
+  '/login': typeof LoginRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/api/public/download-all': typeof ApiPublicDownloadAllRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
@@ -85,7 +103,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/bootstrap'
     | '/library'
+    | '/login'
     | '/library/$jobId'
     | '/api/public/download-all'
     | '/api/public/download/$jobId'
@@ -94,7 +114,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/bootstrap'
     | '/library'
+    | '/login'
     | '/library/$jobId'
     | '/api/public/download-all'
     | '/api/public/download/$jobId'
@@ -103,7 +125,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/bootstrap'
     | '/library'
+    | '/login'
     | '/library/$jobId'
     | '/api/public/download-all'
     | '/api/public/download/$jobId'
@@ -113,7 +137,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BootstrapRoute: typeof BootstrapRoute
   LibraryRoute: typeof LibraryRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ApiPublicDownloadAllRoute: typeof ApiPublicDownloadAllRoute
   ApiPublicDownloadJobIdRoute: typeof ApiPublicDownloadJobIdRoute
   ApiPublicReenrichJobIdRoute: typeof ApiPublicReenrichJobIdRoute
@@ -122,11 +148,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library': {
       id: '/library'
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bootstrap': {
+      id: '/bootstrap'
+      path: '/bootstrap'
+      fullPath: '/bootstrap'
+      preLoaderRoute: typeof BootstrapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -187,7 +227,9 @@ const LibraryRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BootstrapRoute: BootstrapRoute,
   LibraryRoute: LibraryRouteWithChildren,
+  LoginRoute: LoginRoute,
   ApiPublicDownloadAllRoute: ApiPublicDownloadAllRoute,
   ApiPublicDownloadJobIdRoute: ApiPublicDownloadJobIdRoute,
   ApiPublicReenrichJobIdRoute: ApiPublicReenrichJobIdRoute,

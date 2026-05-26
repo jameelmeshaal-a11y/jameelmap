@@ -1,12 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { listJobs, getAggregateStats } from "@/lib/library.functions";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { listJobs, getAggregateStats, deleteEmptyJobs, deleteJob } from "@/lib/library.functions";
+import { stopScrape } from "@/lib/scraper.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Download, FileText, Home, Loader2, Database } from "lucide-react";
+import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/login" });
+  },
   component: LibraryPage,
   head: () => ({
     meta: [
@@ -17,8 +23,12 @@ export const Route = createFileRoute("/library")({
 });
 
 function LibraryPage() {
+  const qc = useQueryClient();
   const fn = useServerFn(listJobs);
   const statsFn = useServerFn(getAggregateStats);
+  const stopFn = useServerFn(stopScrape);
+  const delEmptyFn = useServerFn(deleteEmptyJobs);
+  const delJobFn = useServerFn(deleteJob);
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => fn(),
@@ -29,23 +39,34 @@ function LibraryPage() {
     queryFn: () => statsFn(),
     refetchInterval: 15000,
   });
+  const stopMut = useMutation({
+    mutationFn: (id: string) => stopFn({ data: { jobId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const delEmptyMut = useMutation({
+    mutationFn: () => delEmptyFn(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const delJobMut = useMutation({
+    mutationFn: (id: string) => delJobFn({ data: { jobId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const logout = async () => { await supabase.auth.signOut(); window.location.href = "/login"; };
 
   return (
     <main className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <h1 className="text-2xl font-bold">مكتبة النتائج</h1>
+          <div className="flex items-center gap-2"><Home className="h-5 w-5" /><h1 className="text-2xl font-bold">مكتبة النتائج</h1></div>
           <div className="flex items-center gap-2">
-            <a
-              href="/api/public/download-all"
-              download
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-            >
+            <Button variant="outline" size="sm" onClick={() => delEmptyMut.mutate()} disabled={delEmptyMut.isPending}>
+              <Trash2 className="ml-1.5 h-4 w-4" /> حذف الفارغة
+            </Button>
+            <a href="/api/public/download-all" download className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               <Download className="h-4 w-4" /> تصدير مجمّع
             </a>
-            <Link to="/">
-              <Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button>
-            </Link>
+            <Link to="/"><Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button></Link>
+            <Button variant="ghost" size="sm" onClick={logout}><LogOut className="ml-1.5 h-4 w-4" /> خروج</Button>
           </div>
         </div>
         {stats.data && (
@@ -99,22 +120,22 @@ function LibraryPage() {
                   <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
                     {j.results_count} نتيجة
                   </span>
-                  {j.status === "completed" && j.results_count > 0 && (
-                    <a
-                      href={`/api/public/download/${j.id}`}
-                      download
-                      className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
-                    >
+                  {(j.status === "running" || j.status === "pending") && (
+                    <Button variant="destructive" size="sm" onClick={() => stopMut.mutate(j.id as string)} disabled={stopMut.isPending}>
+                      <StopCircle className="ml-1.5 h-4 w-4" /> إيقاف
+                    </Button>
+                  )}
+                  {(j.status === "completed" || j.status === "stopped") && j.results_count > 0 && (
+                    <a href={`/api/public/download/${j.id}`} download className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
                       <Download className="h-4 w-4" /> Excel
                     </a>
                   )}
-                  <Link
-                    to="/library/$jobId"
-                    params={{ jobId: j.id as string }}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                  >
+                  <Link to="/library/$jobId" params={{ jobId: j.id as string }} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                     <FileText className="h-4 w-4" /> عرض <ArrowRight className="h-4 w-4" />
                   </Link>
+                  <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف هذه المهمة وجميع نتائجها؟")) delJobMut.mutate(j.id as string); }}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </div>
             </Card>

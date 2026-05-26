@@ -87,3 +87,35 @@ export const runDedup = createServerFn({ method: "POST" })
     const { dedupJob } = await import("@/lib/scrape-engine.server");
     return dedupJob(data.jobId);
   });
+
+export const deleteEmptyJobs = createServerFn({ method: "POST" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: empties } = await supabaseAdmin
+    .from("scrape_jobs")
+    .select("id")
+    .eq("results_count", 0)
+    .in("status", ["completed", "failed", "stopped"]);
+  const ids = (empties ?? []).map((r) => r.id as string);
+  if (ids.length === 0) return { removed: 0 };
+  await supabaseAdmin.from("scrape_job_cities").delete().in("job_id", ids);
+  await supabaseAdmin.from("scrape_jobs").delete().in("id", ids);
+  await supabaseAdmin.from("audit_log").insert({
+    action: "delete_empty_jobs",
+    details: { count: ids.length },
+  });
+  return { removed: ids.length };
+});
+
+export const deleteJob = createServerFn({ method: "POST" })
+  .inputValidator((d: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("scrape_results").delete().eq("job_id", data.jobId);
+    await supabaseAdmin.from("scrape_job_cities").delete().eq("job_id", data.jobId);
+    await supabaseAdmin.from("scrape_jobs").delete().eq("id", data.jobId);
+    await supabaseAdmin.from("audit_log").insert({
+      action: "delete_job",
+      details: { jobId: data.jobId },
+    });
+    return { ok: true };
+  });
