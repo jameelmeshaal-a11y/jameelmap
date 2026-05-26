@@ -69,6 +69,7 @@ async function saveBatch(jobId: string, rows: Record<string, unknown>[]): Promis
 interface ProcessCityResult {
   city: string;
   saved: number;
+  fromCache?: boolean;
   error?: string;
 }
 
@@ -76,11 +77,33 @@ async function processCity(
   jobId: string,
   city: string,
   country: string,
+  activity: string,
   keywords: string[],
   globalSeen: Set<string>,
   globalDedupKeys: Set<string>,
   remainingBudget: () => number,
 ): Promise<ProcessCityResult> {
+  // 1) كاش — TTL 3 أيام
+  const cached = await readSearchCache<RawPlace[]>(country, activity, city);
+  if (cached && Array.isArray(cached) && cached.length > 0) {
+    await updateCity(jobId, city, { status: "running", current_step: "⚡ من الكاش", progress: 50 });
+    const fresh: RawPlace[] = [];
+    for (const r of cached) {
+      if (remainingBudget() <= fresh.length) break;
+      if (globalSeen.has(r.place_id)) continue;
+      globalSeen.add(r.place_id);
+      fresh.push(r);
+    }
+    const rows = fresh.map((r) => ({
+      job_id: jobId, place_id: r.place_id, name: r.name, address: r.address,
+      city, state: r.state, country, phone: r.phone, whatsapp: r.whatsapp ?? "",
+      website: r.website, category: r.category, maps_url: r.maps_url, email: "",
+    }));
+    const saved = await saveBatch(jobId, rows);
+    await updateCity(jobId, city, { status: "done", progress: 100, results_count: saved, current_step: `⚡ من الكاش · ${saved} نتيجة` });
+    return { city, saved, fromCache: true };
+  }
+
   await updateCity(jobId, city, { status: "running", current_step: "جاري تحديد الإحداثيات", progress: 2 });
 
   if (await isJobStopped(jobId)) {
