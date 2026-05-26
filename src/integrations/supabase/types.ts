@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      scrape_job_cities: {
+        Row: {
+          city: string
+          created_at: string
+          current_step: string
+          error_message: string
+          id: string
+          job_id: string
+          progress: number
+          results_count: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          current_step?: string
+          error_message?: string
+          id?: string
+          job_id: string
+          progress?: number
+          results_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          current_step?: string
+          error_message?: string
+          id?: string
+          job_id?: string
+          progress?: number
+          results_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scrape_jobs: {
         Row: {
           activity: string
