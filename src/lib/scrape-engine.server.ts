@@ -291,7 +291,10 @@ export async function reEnrichJob(jobId: string): Promise<{ updated: number; tot
   await runInBatches(targets, ENRICH_CONCURRENCY, async (row) => {
     const e = await enrichFromWebsite(row.website as string, (row.phone as string) ?? "");
     if (!e.email && !e.facebook && !e.instagram && !e.whatsapp) return;
-    const patch: Record<string, string> = {};
+    const patch: {
+      email?: string; facebook?: string; instagram?: string; twitter?: string;
+      youtube?: string; tiktok?: string; snapchat?: string; whatsapp?: string;
+    } = {};
     if (e.email) patch.email = e.email;
     if (e.facebook) patch.facebook = e.facebook;
     if (e.instagram) patch.instagram = e.instagram;
