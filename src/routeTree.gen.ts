@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as BootstrapRouteImport } from './routes/bootstrap'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LibraryJobIdRouteImport } from './routes/library.$jobId'
 import { Route as ApiPublicDownloadAllRouteImport } from './routes/api/public/download-all'
@@ -32,6 +33,11 @@ const LibraryRoute = LibraryRouteImport.update({
 const BootstrapRoute = BootstrapRouteImport.update({
   id: '/bootstrap',
   path: '/bootstrap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -67,6 +73,7 @@ const ApiPublicDownloadJobIdRoute = ApiPublicDownloadJobIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/bootstrap': typeof BootstrapRoute
   '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/bootstrap': typeof BootstrapRoute
   '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/bootstrap': typeof BootstrapRoute
   '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/bootstrap'
     | '/library'
     | '/login'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/bootstrap'
     | '/library'
     | '/login'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/bootstrap'
     | '/library'
     | '/login'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   BootstrapRoute: typeof BootstrapRoute
   LibraryRoute: typeof LibraryRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/bootstrap'
       fullPath: '/bootstrap'
       preLoaderRoute: typeof BootstrapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -227,6 +247,7 @@ const LibraryRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   BootstrapRoute: BootstrapRoute,
   LibraryRoute: LibraryRouteWithChildren,
   LoginRoute: LoginRoute,

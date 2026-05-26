@@ -88,13 +88,23 @@ function HomePage() {
         style={{ background: "var(--gradient-hero)" }}
       >
         <div className="container mx-auto px-6 pt-6 pb-28">
-          <div className="flex justify-end">
-            <Link
-              to="/library"
-              className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25"
-            >
-              <FolderOpen className="h-4 w-4" /> مكتبة النتائج
-            </Link>
+          <div className="flex items-center justify-between gap-3">
+            <Logo size={36} />
+            <div className="flex flex-wrap items-center gap-2">
+              <AdminLink />
+              <Link
+                to="/library"
+                className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25"
+              >
+                <FolderOpen className="h-4 w-4" /> المكتبة
+              </Link>
+              <button
+                onClick={async () => { await supabase.auth.signOut(); window.location.href = "/login"; }}
+                className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25"
+              >
+                <LogOut className="h-4 w-4" /> خروج
+              </button>
+            </div>
           </div>
           <div className="mt-6 text-center">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium backdrop-blur">
@@ -291,5 +301,23 @@ function HomePage() {
         </p>
       </section>
     </main>
+  );
+}
+
+function AdminLink() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useMemo(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
+      if (data?.role === "admin") setIsAdmin(true);
+    })();
+  }, []);
+  if (!isAdmin) return null;
+  return (
+    <Link to="/admin" className="inline-flex items-center gap-2 rounded-full bg-accent/90 px-4 py-2 text-sm font-semibold text-accent-foreground backdrop-blur transition-colors hover:bg-accent">
+      <Sparkles className="h-4 w-4" /> الإدارة
+    </Link>
   );
 }
