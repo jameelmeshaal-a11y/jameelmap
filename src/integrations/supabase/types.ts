@@ -95,8 +95,10 @@ export type Database = {
           max_results: number | null
           processed_cities: string[] | null
           results_count: number
+          selected_cities: string[]
           status: string
           stopped_at: string | null
+          total_cities: number
           updated_at: string
           user_id: string | null
         }
@@ -114,8 +116,10 @@ export type Database = {
           max_results?: number | null
           processed_cities?: string[] | null
           results_count?: number
+          selected_cities?: string[]
           status?: string
           stopped_at?: string | null
+          total_cities?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -133,8 +137,10 @@ export type Database = {
           max_results?: number | null
           processed_cities?: string[] | null
           results_count?: number
+          selected_cities?: string[]
           status?: string
           stopped_at?: string | null
+          total_cities?: number
           updated_at?: string
           user_id?: string | null
         }

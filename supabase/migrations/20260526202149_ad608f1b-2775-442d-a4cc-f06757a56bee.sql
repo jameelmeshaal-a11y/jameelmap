@@ -1,0 +1,3 @@
+ALTER TABLE public.scrape_jobs
+  ADD COLUMN IF NOT EXISTS selected_cities TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS total_cities INT NOT NULL DEFAULT 0;
