@@ -1,112 +1,180 @@
-// منطق جمع البيانات من Google Places API (New) عبر بوابة موصل Lovable
-// + إثراء بإيميل وروابط سوشيال (Firecrawl ⇒ HTML fallback)
+// محرك جمع البيانات — يستخدم تقسيم شبكي تكيّفي لاستخراج ~كل المتاجر،
+// ويعالج 5 مدن بالتوازي مع تتبع تقدم لكل مدينة عبر scrape_job_cities.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveCities, MOSQUE_KEYWORDS, isMosqueActivity } from "@/lib/country-cities";
 import { enrichFromWebsite, runInBatches, normalizeName, EMPTY_ENRICHMENT } from "@/lib/enrich.server";
+import {
+  geocodeCity, tileViewport, searchCellAdaptive, pool,
+  type RawPlace,
+} from "@/lib/places-grid.server";
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_maps";
-const MAX_RESULTS = 10000;
-const QUERY_CONCURRENCY = 3;
+const CITY_CONCURRENCY = 5;
+const CELL_CONCURRENCY = 6;        // خلايا متوازية داخل المدينة
 const ENRICH_CONCURRENCY = 4;
+const GRID_SIZE = 4;               // 4×4 = 16 خلية أولية
+const MAX_RESULTS_PER_JOB = 20000;
 
-const FIELD_MASK = [
-  "places.id",
-  "places.displayName",
-  "places.formattedAddress",
-  "places.internationalPhoneNumber",
-  "places.nationalPhoneNumber",
-  "places.websiteUri",
-  "places.primaryTypeDisplayName",
-  "places.googleMapsUri",
-  "places.addressComponents",
-  "nextPageToken",
-].join(",");
-
-interface PlaceResult {
-  place_id: string;
-  name: string;
-  address: string;
-  state: string;
-  phone: string;
-  whatsapp: string;
-  website: string;
-  category: string;
-  maps_url: string;
+async function updateCity(
+  jobId: string,
+  city: string,
+  patch: Partial<{
+    status: string; progress: number; results_count: number;
+    current_step: string; error_message: string;
+  }>,
+): Promise<void> {
+  await supabaseAdmin
+    .from("scrape_job_cities")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("job_id", jobId)
+    .eq("city", city);
 }
 
-function cleanPhone(phone: string): string {
-  return phone ? phone.replace(/[^\d+]/g, "") : "";
+async function ensureCityRow(jobId: string, city: string): Promise<void> {
+  // upsert على (job_id, city) — لو موجود لا يفعل شيئاً
+  await supabaseAdmin
+    .from("scrape_job_cities")
+    .upsert({ job_id: jobId, city, status: "pending" }, { onConflict: "job_id,city", ignoreDuplicates: true });
 }
 
-function extractState(components: Array<{ types: string[]; shortText?: string; longText?: string }> | undefined): string {
-  if (!components) return "";
-  const admin = components.find((c) => c.types?.includes("administrative_area_level_1"));
-  return admin?.shortText || admin?.longText || "";
+interface ProcessCityResult {
+  city: string;
+  saved: number;
+  error?: string;
 }
 
-async function searchTextOnce(query: string, pageToken?: string): Promise<{
-  places: Array<Record<string, unknown>>;
-  nextPageToken?: string;
-}> {
-  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-  const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
-  if (!GOOGLE_MAPS_API_KEY) throw new Error("GOOGLE_MAPS_API_KEY is not configured");
+async function processCity(
+  jobId: string,
+  city: string,
+  country: string,
+  keywords: string[],
+  globalSeen: Set<string>,
+  globalDedupKeys: Set<string>,
+): Promise<ProcessCityResult> {
+  await updateCity(jobId, city, { status: "running", current_step: "geocoding", progress: 2 });
 
-  const body: Record<string, unknown> = { textQuery: query, pageSize: 20 };
-  if (pageToken) body.pageToken = pageToken;
+  // 1) Geocode
+  const geo = await geocodeCity(city, country);
+  if (!geo) {
+    await updateCity(jobId, city, {
+      status: "failed", current_step: "geocode failed",
+      error_message: "تعذّر تحديد الإحداثيات", progress: 100,
+    });
+    return { city, saved: 0, error: "geocode failed" };
+  }
 
-  const res = await fetch(`${GATEWAY_URL}/places/v1/places:searchText`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "X-Connection-Api-Key": GOOGLE_MAPS_API_KEY,
-      "Content-Type": "application/json",
-      "X-Goog-FieldMask": FIELD_MASK,
-    },
-    body: JSON.stringify(body),
+  // 2) Tile
+  const cells = tileViewport(geo.viewport, GRID_SIZE);
+  const totalUnits = cells.length * Math.max(1, keywords.length);
+  let doneUnits = 0;
+  const localResults: RawPlace[] = [];
+  const localSeen = new Set<string>();
+
+  await updateCity(jobId, city, { current_step: `0/${cells.length} خلية`, progress: 5 });
+
+  // 3) لكل كلمة مفتاحية × كل خلية — بالتوازي عبر pool
+  type Task = { kw: string; cellIdx: number };
+  const tasks: Task[] = [];
+  for (const kw of keywords) {
+    for (let i = 0; i < cells.length; i++) tasks.push({ kw, cellIdx: i });
+  }
+
+  await pool(tasks, CELL_CONCURRENCY, async (t) => {
+    try {
+      const results = await searchCellAdaptive(`${t.kw} in ${city}`, cells[t.cellIdx]);
+      for (const r of results) {
+        if (!localSeen.has(r.place_id)) {
+          localSeen.add(r.place_id);
+          localResults.push(r);
+        }
+      }
+    } catch (e) {
+      console.error(`[${city}] cell ${t.cellIdx} kw="${t.kw}" failed:`, e);
+    } finally {
+      doneUnits++;
+      // حدّث التقدم كل 4 وحدات لتقليل round-trips
+      if (doneUnits % 4 === 0 || doneUnits === totalUnits) {
+        const progress = Math.min(85, 5 + Math.round((doneUnits / totalUnits) * 75));
+        await updateCity(jobId, city, {
+          progress,
+          current_step: `${doneUnits}/${totalUnits} خلية · ${localResults.length} نتيجة`,
+          results_count: localResults.length,
+        });
+      }
+    }
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Places searchText failed [${res.status}]: ${text.slice(0, 300)}`);
+  // 4) Dedup عالمياً
+  const fresh: RawPlace[] = [];
+  for (const r of localResults) {
+    if (globalSeen.has(r.place_id)) continue;
+    const nameKey = `n:${normalizeName(r.name)}|${city.toLowerCase()}`;
+    const phoneKey = r.phone ? `p:${r.phone}` : "";
+    if (globalDedupKeys.has(nameKey)) continue;
+    if (phoneKey && globalDedupKeys.has(phoneKey)) continue;
+    globalSeen.add(r.place_id);
+    globalDedupKeys.add(nameKey);
+    if (phoneKey) globalDedupKeys.add(phoneKey);
+    fresh.push(r);
   }
-  const data = (await res.json()) as { places?: Array<Record<string, unknown>>; nextPageToken?: string };
-  return { places: data.places ?? [], nextPageToken: data.nextPageToken };
-}
 
-function placeToResult(p: Record<string, unknown>): PlaceResult | null {
-  const id = (p.id as string) ?? "";
-  if (!id) return null;
-  const phone = cleanPhone((p.internationalPhoneNumber as string) || (p.nationalPhoneNumber as string) || "");
-  return {
-    place_id: id,
-    name: ((p.displayName as { text?: string } | undefined)?.text) ?? "",
-    address: (p.formattedAddress as string) ?? "",
-    state: extractState(p.addressComponents as Array<{ types: string[]; shortText?: string; longText?: string }>),
-    phone,
-    whatsapp: phone && /^\+\d{10,15}$/.test(phone) ? phone : "",
-    website: (p.websiteUri as string) ?? "",
-    category: ((p.primaryTypeDisplayName as { text?: string } | undefined)?.text) ?? "",
-    maps_url: (p.googleMapsUri as string) ?? "",
-  };
-}
+  // 5) إثراء (إيميل/سوشيال) للمواقع
+  await updateCity(jobId, city, {
+    progress: 88,
+    current_step: `إثراء ${fresh.filter((r) => r.website).length} موقع`,
+  });
 
-async function searchQuery(query: string): Promise<PlaceResult[]> {
-  const out: PlaceResult[] = [];
-  let pageToken: string | undefined;
-  for (let page = 0; page < 3; page++) {
-    const { places, nextPageToken } = await searchTextOnce(query, pageToken);
-    for (const p of places) {
-      const r = placeToResult(p);
-      if (r) out.push(r);
-    }
-    if (!nextPageToken) break;
-    pageToken = nextPageToken;
-    await new Promise((r) => setTimeout(r, 1500));
+  const toEnrich = fresh.filter((r) => r.website);
+  const enrichResults = await runInBatches(toEnrich, ENRICH_CONCURRENCY, async (r) => {
+    const e = await enrichFromWebsite(r.website, r.phone);
+    return [r.place_id, e] as const;
+  });
+  const enrichments = new Map(enrichResults);
+
+  // 6) إدراج بدفعات (batch upsert)
+  const rows = fresh.map((r) => {
+    const e = enrichments.get(r.place_id) ?? EMPTY_ENRICHMENT;
+    return {
+      job_id: jobId,
+      place_id: r.place_id,
+      name: r.name,
+      address: r.address,
+      city,
+      state: r.state,
+      phone: r.phone,
+      whatsapp: e.whatsapp || r.whatsapp,
+      website: r.website,
+      category: r.category,
+      maps_url: r.maps_url,
+      email: e.email,
+      facebook: e.facebook,
+      instagram: e.instagram,
+      twitter: e.twitter,
+      youtube: e.youtube,
+      tiktok: e.tiktok,
+      snapchat: e.snapchat,
+    };
+  });
+
+  let saved = 0;
+  const BATCH = 200;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const slice = rows.slice(i, i + BATCH);
+    const { error } = await supabaseAdmin
+      .from("scrape_results")
+      .upsert(slice, { onConflict: "job_id,place_id", ignoreDuplicates: true });
+    if (!error) saved += slice.length;
+    else console.error(`[${city}] insert batch ${i} error:`, error);
   }
-  return out;
+
+  await updateCity(jobId, city, {
+    status: "done",
+    progress: 100,
+    results_count: saved,
+    current_step: `مكتملة · ${saved} نتيجة فريدة`,
+  });
+
+  return { city, saved };
 }
 
 // ========== Main job ==========
@@ -125,127 +193,76 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
     return;
   }
 
-  const { cities } = resolveCities(country);
+  // اقرأ المدن: إما من scrape_job_cities (تم إدخالها عند البدء) أو من resolveCities كحل احتياطي
+  const { data: cityRows } = await supabaseAdmin
+    .from("scrape_job_cities")
+    .select("city")
+    .eq("job_id", jobId);
+
+  let cities: string[] = (cityRows ?? []).map((r) => r.city as string);
+  if (cities.length === 0) {
+    cities = resolveCities(country).cities;
+    // أنشئ صفوف per-city للتتبع
+    if (cities.length > 0) {
+      await supabaseAdmin
+        .from("scrape_job_cities")
+        .insert(cities.map((c) => ({ job_id: jobId, city: c, status: "pending" })));
+    }
+  } else {
+    // تأكد أن جميعها موجودة
+    for (const c of cities) await ensureCityRow(jobId, c);
+  }
+
   const isMosque = isMosqueActivity(activity);
-  const keywords = isMosque ? MOSQUE_KEYWORDS : [activity];
+  const keywords = isMosque ? MOSQUE_KEYWORDS.slice(0, 4) : [activity];
 
   await supabaseAdmin.from("scrape_jobs").update({
     status: "running",
     cities_total: cities.length,
+    cities_done: 0,
+    results_count: 0,
     updated_at: new Date().toISOString(),
   }).eq("id", jobId);
 
-  const seenPlaceIds = new Set<string>();
-  const seenDedupKeys = new Set<string>(); // مفتاح: name+city أو phone
+  const globalSeen = new Set<string>();
+  const globalDedupKeys = new Set<string>();
   let totalSaved = 0;
-  let failedCities = 0;
+  let citiesDone = 0;
+  let citiesFailed = 0;
   let lastError = "";
 
   try {
-    for (let i = 0; i < cities.length; i++) {
-      if (totalSaved >= MAX_RESULTS) break;
-      const city = cities[i];
+    await pool(cities, CITY_CONCURRENCY, async (city) => {
+      if (totalSaved >= MAX_RESULTS_PER_JOB) return { city, saved: 0 };
 
       await supabaseAdmin.from("scrape_jobs").update({
         current_city: city,
-        cities_done: i,
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
 
-      const queries = keywords.map((kw) => `${kw} in ${city}`);
-      const allResults: PlaceResult[] = [];
-      const errors: string[] = [];
-
-      for (let b = 0; b < queries.length; b += QUERY_CONCURRENCY) {
-        const batch = queries.slice(b, b + QUERY_CONCURRENCY);
-        const settled = await Promise.allSettled(batch.map(searchQuery));
-        for (const s of settled) {
-          if (s.status === "fulfilled") allResults.push(...s.value);
-          else errors.push(s.reason instanceof Error ? s.reason.message : String(s.reason));
-        }
+      const res = await processCity(jobId, city, country, keywords, globalSeen, globalDedupKeys);
+      if (res.error) {
+        citiesFailed++;
+        lastError = res.error;
       }
-
-      if (errors.length === queries.length) {
-        failedCities++;
-        lastError = errors[errors.length - 1] ?? "unknown";
-        console.error(`City fully failed: ${city}`, errors[0]);
-        continue;
-      }
-
-      // إزالة التكرار: place_id (Google) + (الاسم المُطبَّع + المدينة) + الهاتف
-      const fresh: PlaceResult[] = [];
-      for (const r of allResults) {
-        if (seenPlaceIds.has(r.place_id)) continue;
-        const nameKey = `n:${normalizeName(r.name)}|${city.toLowerCase()}`;
-        const phoneKey = r.phone ? `p:${r.phone}` : "";
-        if (seenDedupKeys.has(nameKey)) continue;
-        if (phoneKey && seenDedupKeys.has(phoneKey)) continue;
-        seenPlaceIds.add(r.place_id);
-        seenDedupKeys.add(nameKey);
-        if (phoneKey) seenDedupKeys.add(phoneKey);
-        fresh.push(r);
-      }
-
-      if (fresh.length === 0) {
-        await supabaseAdmin.from("scrape_jobs").update({
-          cities_done: i + 1,
-          updated_at: new Date().toISOString(),
-        }).eq("id", jobId);
-        continue;
-      }
-
-      // إثراء (Firecrawl ⇒ HTML fallback) — للنتائج التي لها موقع
-      const toEnrich = fresh.filter((r) => r.website);
-      const enrichResults = await runInBatches(toEnrich, ENRICH_CONCURRENCY, async (r) => {
-        const e = await enrichFromWebsite(r.website, r.phone);
-        return [r.place_id, e] as const;
-      });
-      const enrichments = new Map(enrichResults);
-
-      const rows = fresh.map((r) => {
-        const e = enrichments.get(r.place_id) ?? EMPTY_ENRICHMENT;
-        return {
-          job_id: jobId,
-          place_id: r.place_id,
-          name: r.name,
-          address: r.address,
-          city,
-          state: r.state,
-          phone: r.phone,
-          whatsapp: e.whatsapp || r.whatsapp,
-          website: r.website,
-          category: r.category,
-          maps_url: r.maps_url,
-          email: e.email,
-          facebook: e.facebook,
-          instagram: e.instagram,
-          twitter: e.twitter,
-          youtube: e.youtube,
-          tiktok: e.tiktok,
-          snapchat: e.snapchat,
-        };
-      });
-
-      const { error } = await supabaseAdmin
-        .from("scrape_results")
-        .upsert(rows, { onConflict: "job_id,place_id", ignoreDuplicates: true });
-      if (error) console.error("Insert error:", error);
-      else totalSaved += rows.length;
+      totalSaved += res.saved;
+      citiesDone++;
 
       await supabaseAdmin.from("scrape_jobs").update({
-        cities_done: i + 1,
+        cities_done: citiesDone,
         results_count: totalSaved,
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
-    }
 
-    const allFailed = failedCities === cities.length;
-    const mostlyFailed = failedCities > 0 && totalSaved === 0;
-    if (allFailed || mostlyFailed) {
+      return res;
+    });
+
+    const allFailed = citiesFailed === cities.length;
+    if (allFailed) {
       await supabaseAdmin.from("scrape_jobs").update({
         status: "failed",
         current_city: "",
-        error_message: `فشلت ${failedCities} من ${cities.length} مدينة. آخر خطأ: ${lastError || "غير معروف"}`,
+        error_message: `فشلت جميع المدن (${cities.length}). آخر خطأ: ${lastError || "غير معروف"}`,
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
       return;
@@ -256,7 +273,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
       current_city: "",
       cities_done: cities.length,
       results_count: totalSaved,
-      error_message: failedCities > 0 ? `تنبيه: فشلت ${failedCities} مدينة` : "",
+      error_message: citiesFailed > 0 ? `تنبيه: فشلت ${citiesFailed} مدينة` : "",
       updated_at: new Date().toISOString(),
     }).eq("id", jobId);
   } catch (err) {
@@ -271,11 +288,10 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
 }
 
 // ============================================================
-// إعادة إثراء وظيفة موجودة (استخراج إيميل/سوشيال بدون إعادة جمع)
+// إعادة إثراء وظيفة موجودة
 // ============================================================
 
 export async function reEnrichJob(jobId: string): Promise<{ updated: number; total: number }> {
-  // اقرأ الصفوف التي لديها موقع ولا تملك إيميل بعد
   const { data: rows } = await supabaseAdmin
     .from("scrape_results")
     .select("id, website, phone, email")
@@ -313,7 +329,7 @@ export async function reEnrichJob(jobId: string): Promise<{ updated: number; tot
 }
 
 // ============================================================
-// إزالة التكرار من وظيفة موجودة (اسم مُطبَّع+مدينة، أو هاتف)
+// إزالة التكرار من وظيفة موجودة
 // ============================================================
 
 export async function dedupJob(jobId: string): Promise<{ removed: number; kept: number }> {
@@ -322,11 +338,10 @@ export async function dedupJob(jobId: string): Promise<{ removed: number; kept: 
     .select("id, name, city, phone, email, website, created_at")
     .eq("job_id", jobId)
     .order("created_at", { ascending: true })
-    .limit(10000);
+    .limit(20000);
 
   if (!rows || rows.length === 0) return { removed: 0, kept: 0 };
 
-  // نحتفظ بالصف الأغنى بالبيانات لكل مفتاح
   const score = (r: { email?: string | null; website?: string | null; phone?: string | null }) =>
     (r.email ? 2 : 0) + (r.website ? 1 : 0) + (r.phone ? 1 : 0);
 
@@ -358,7 +373,6 @@ export async function dedupJob(jobId: string): Promise<{ removed: number; kept: 
     }
   }
 
-  // حذف على دفعات
   const unique = [...new Set(toDelete)];
   for (let i = 0; i < unique.length; i += 200) {
     const batch = unique.slice(i, i + 200);
