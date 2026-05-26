@@ -120,22 +120,22 @@ function LibraryPage() {
                   <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
                     {j.results_count} نتيجة
                   </span>
-                  {j.status === "completed" && j.results_count > 0 && (
-                    <a
-                      href={`/api/public/download/${j.id}`}
-                      download
-                      className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
-                    >
+                  {(j.status === "running" || j.status === "pending") && (
+                    <Button variant="destructive" size="sm" onClick={() => stopMut.mutate(j.id as string)} disabled={stopMut.isPending}>
+                      <StopCircle className="ml-1.5 h-4 w-4" /> إيقاف
+                    </Button>
+                  )}
+                  {(j.status === "completed" || j.status === "stopped") && j.results_count > 0 && (
+                    <a href={`/api/public/download/${j.id}`} download className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
                       <Download className="h-4 w-4" /> Excel
                     </a>
                   )}
-                  <Link
-                    to="/library/$jobId"
-                    params={{ jobId: j.id as string }}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                  >
+                  <Link to="/library/$jobId" params={{ jobId: j.id as string }} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                     <FileText className="h-4 w-4" /> عرض <ArrowRight className="h-4 w-4" />
                   </Link>
+                  <Button variant="ghost" size="icon" onClick={() => { if (confirm("حذف هذه المهمة وجميع نتائجها؟")) delJobMut.mutate(j.id as string); }}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </div>
             </Card>

@@ -11,7 +11,14 @@ import {
   Phone, Search, Sparkles, Trash2, Twitter, Youtube,
 } from "lucide-react";
 
+import { redirect } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
+
 export const Route = createFileRoute("/library/$jobId")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/login" });
+  },
   component: JobDetailPage,
 });
 
