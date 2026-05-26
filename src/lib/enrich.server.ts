@@ -172,9 +172,8 @@ async function enrichViaHtmlFallback(url: string, phoneHint: string): Promise<En
     }
     const socials = pickSocials(html);
     for (const [k, v] of Object.entries(socials)) {
-      if (v && !result[k as keyof EnrichmentResult]) {
-        (result as Record<string, string>)[k] = v;
-      }
+      const key = k as keyof EnrichmentResult;
+      if (v && !result[key]) result[key] = v;
     }
     if (!result.whatsapp) {
       const w = pickWhatsapp(html, phoneHint);
