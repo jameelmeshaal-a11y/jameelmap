@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { listJobs, getAggregateStats, deleteEmptyJobs, deleteJob } from "@/lib/library.functions";
 import { stopScrape } from "@/lib/scraper.functions";
 import { scrapeJobEmails } from "@/lib/email-scraper.functions";
