@@ -114,8 +114,18 @@ function LibraryPage() {
           </Card>
         )}
 
+        <div className="mb-4">
+          <input
+            type="search"
+            placeholder="بحث في المكتبة (نشاط أو دولة)..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-md border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+
         <div className="space-y-3">
-          {data?.jobs.map((j) => (
+          {filteredJobs.map((j) => (
             <Card key={j.id} className="p-4 transition-shadow hover:shadow-md">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -123,6 +133,11 @@ function LibraryPage() {
                     <h2 className="text-base font-semibold">{j.activity}</h2>
                     <span className="text-sm text-muted-foreground">— {j.country}</span>
                     <StatusBadge status={j.status as string} />
+                    {j.from_cache ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                        <Zap className="h-3 w-3" /> من الكاش
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(j.created_at as string).toLocaleString("ar")} · {j.cities_done}/{j.cities_total} مدينة
@@ -141,9 +156,16 @@ function LibraryPage() {
                     </Button>
                   )}
                   {(j.status === "completed" || j.status === "stopped") && j.results_count > 0 && (
-                    <a href={`/api/public/download/${j.id}`} download className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
-                      <Download className="h-4 w-4" /> Excel
-                    </a>
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => emailMut.mutate(j.id as string)} disabled={emailMut.isPending}>
+                        {emailMut.isPending && emailMut.variables === j.id
+                          ? <><Loader2 className="ml-1.5 h-4 w-4 animate-spin" /> جلب...</>
+                          : <><Mail className="ml-1.5 h-4 w-4" /> جلب الإيميلات</>}
+                      </Button>
+                      <a href={`/api/public/download/${j.id}`} download className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
+                        <Download className="h-4 w-4" /> Excel
+                      </a>
+                    </>
                   )}
                   <Link to="/library/$jobId" params={{ jobId: j.id as string }} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                     <FileText className="h-4 w-4" /> عرض <ArrowRight className="h-4 w-4" />
