@@ -101,8 +101,8 @@ function StatsTab() {
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip />
-              <Line type="monotone" dataKey="jobs" stroke="hsl(var(--primary))" name="وظائف" />
-              <Line type="monotone" dataKey="results" stroke="hsl(var(--accent))" name="نتائج" />
+              <Line type="monotone" dataKey="jobs" stroke="#0D1B4B" name="وظائف" />
+              <Line type="monotone" dataKey="results" stroke="#C9A84C" name="نتائج" />
             </LineChart>
           </ResponsiveContainer>
         </div>
