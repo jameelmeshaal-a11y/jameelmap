@@ -44,7 +44,7 @@ export async function writeCacheRaw(key: string, data: unknown, ttlDays: number,
     .upsert(
       {
         cache_key: key,
-        data: data as object,
+        data: data as never,
         expires_at: expiresAt,
         result_count: resultCount,
         created_at: new Date().toISOString(),
