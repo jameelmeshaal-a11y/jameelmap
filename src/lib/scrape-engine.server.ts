@@ -55,9 +55,9 @@ async function ensureCityRow(jobId: string, city: string): Promise<void> {
 
 async function saveBatch(jobId: string, rows: Record<string, unknown>[]): Promise<number> {
   if (rows.length === 0) return 0;
-  const { error } = await supabaseAdmin
-    .from("scrape_results")
-    .upsert(rows, { onConflict: "job_id,place_id", ignoreDuplicates: true });
+  const { error } = await (supabaseAdmin.from("scrape_results") as unknown as {
+    upsert: (rows: unknown, opts: { onConflict: string; ignoreDuplicates: boolean }) => Promise<{ error: { message: string } | null }>;
+  }).upsert(rows, { onConflict: "job_id,place_id", ignoreDuplicates: true });
   if (error) {
     console.error("[saveBatch]", error.message);
     return 0;
