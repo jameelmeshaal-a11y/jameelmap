@@ -6,7 +6,7 @@ import { stopScrape } from "@/lib/scraper.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle } from "lucide-react";
+import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
   beforeLoad: async () => {
