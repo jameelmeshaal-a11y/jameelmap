@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Download, Loader2, MapPin, Search, Sparkles } from "lucide-react";
+import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -62,15 +62,25 @@ function HomePage() {
         className="relative overflow-hidden text-primary-foreground"
         style={{ background: "var(--gradient-hero)" }}
       >
-        <div className="container mx-auto px-6 pt-14 pb-28 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium backdrop-blur">
-            <Sparkles className="h-4 w-4" />
-            <span>منصة استخراج بيانات الأماكن</span>
+        <div className="container mx-auto px-6 pt-6 pb-28">
+          <div className="flex justify-end">
+            <Link
+              to="/library"
+              className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25"
+            >
+              <FolderOpen className="h-4 w-4" /> مكتبة النتائج
+            </Link>
           </div>
-          <h1 className="mt-5 text-5xl font-bold tracking-tight">عالم جميل</h1>
-          <p className="mx-auto mt-3 max-w-xl text-lg text-white/90">
-            أدخل الدولة والنشاط، نجمع لك كل البيانات من خرائط Google ونصدّرها كملف Excel جاهز.
-          </p>
+          <div className="mt-6 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium backdrop-blur">
+              <Sparkles className="h-4 w-4" />
+              <span>منصة استخراج بيانات الأماكن</span>
+            </div>
+            <h1 className="mt-5 text-5xl font-bold tracking-tight">عالم جميل</h1>
+            <p className="mx-auto mt-3 max-w-xl text-lg text-white/90">
+              أدخل الدولة والنشاط، نجمع لك كل البيانات من خرائط Google ونصدّرها كملف Excel جاهز.
+            </p>
+          </div>
         </div>
       </header>
 
