@@ -407,7 +407,9 @@ export async function reEnrichJob(jobId: string): Promise<{ updated: number; tot
     if (e.snapchat) patch.snapchat = e.snapchat;
     if (e.whatsapp) patch.whatsapp = e.whatsapp;
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabaseAdmin.from("scrape_results").update(patch).eq("id", row.id as string);
+      const { error } = await (supabaseAdmin.from("scrape_results") as unknown as {
+        update: (p: unknown) => { eq: (a: string, b: string) => Promise<{ error: unknown }> };
+      }).update(patch).eq("id", row.id as string);
       if (!error) updated++;
     }
   });
