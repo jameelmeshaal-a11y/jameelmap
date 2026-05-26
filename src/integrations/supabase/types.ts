@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          id?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       scrape_job_cities: {
         Row: {
           city: string
@@ -62,10 +89,16 @@ export type Database = {
           created_at: string
           current_city: string | null
           error_message: string | null
+          from_cache: boolean | null
           id: string
+          last_page_token: string | null
+          max_results: number | null
+          processed_cities: string[] | null
           results_count: number
           status: string
+          stopped_at: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           activity: string
@@ -75,10 +108,16 @@ export type Database = {
           created_at?: string
           current_city?: string | null
           error_message?: string | null
+          from_cache?: boolean | null
           id?: string
+          last_page_token?: string | null
+          max_results?: number | null
+          processed_cities?: string[] | null
           results_count?: number
           status?: string
+          stopped_at?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           activity?: string
@@ -88,20 +127,29 @@ export type Database = {
           created_at?: string
           current_city?: string | null
           error_message?: string | null
+          from_cache?: boolean | null
           id?: string
+          last_page_token?: string | null
+          max_results?: number | null
+          processed_cities?: string[] | null
           results_count?: number
           status?: string
+          stopped_at?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
       scrape_results: {
         Row: {
           address: string | null
+          all_emails: string | null
           category: string | null
           city: string | null
+          country: string | null
           created_at: string
           email: string | null
+          email_scraped_at: string | null
           facebook: string | null
           id: string
           instagram: string | null
@@ -120,10 +168,13 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          all_emails?: string | null
           category?: string | null
           city?: string | null
+          country?: string | null
           created_at?: string
           email?: string | null
+          email_scraped_at?: string | null
           facebook?: string | null
           id?: string
           instagram?: string | null
@@ -142,10 +193,13 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          all_emails?: string | null
           category?: string | null
           city?: string | null
+          country?: string | null
           created_at?: string
           email?: string | null
+          email_scraped_at?: string | null
           facebook?: string | null
           id?: string
           instagram?: string | null
@@ -172,15 +226,110 @@ export type Database = {
           },
         ]
       }
+      search_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          data: Json
+          expires_at: string
+          result_count: number
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          data: Json
+          expires_at?: string
+          result_count?: number
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          data?: Json
+          expires_at?: string
+          result_count?: number
+        }
+        Relationships: []
+      }
+      user_permissions: {
+        Row: {
+          allowed_countries: string[]
+          can_delete: boolean
+          can_export: boolean
+          can_search: boolean
+          can_view_library: boolean
+          created_at: string
+          id: string
+          max_searches_per_day: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_countries?: string[]
+          can_delete?: boolean
+          can_export?: boolean
+          can_search?: boolean
+          can_view_library?: boolean
+          created_at?: string
+          id?: string
+          max_searches_per_day?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_countries?: string[]
+          can_delete?: boolean
+          can_export?: boolean
+          can_search?: boolean
+          can_view_library?: boolean
+          created_at?: string
+          id?: string
+          max_searches_per_day?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: { Args: { _user_id: string }; Returns: string }
+      has_any_admin: { Args: never; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -307,6 +456,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "viewer"],
+    },
   },
 } as const
