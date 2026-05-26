@@ -303,3 +303,21 @@ function HomePage() {
     </main>
   );
 }
+
+function AdminLink() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useMemo(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
+      if (data?.role === "admin") setIsAdmin(true);
+    })();
+  }, []);
+  if (!isAdmin) return null;
+  return (
+    <Link to="/admin" className="inline-flex items-center gap-2 rounded-full bg-accent/90 px-4 py-2 text-sm font-semibold text-accent-foreground backdrop-blur transition-colors hover:bg-accent">
+      <Sparkles className="h-4 w-4" /> الإدارة
+    </Link>
+  );
+}
