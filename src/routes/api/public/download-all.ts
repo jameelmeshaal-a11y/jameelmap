@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/download-all")({
           for (;;) {
             const { data, error } = await supabaseAdmin
               .from("scrape_results")
-              .select("place_id, name, city, state, phone, whatsapp, website, email, maps_url")
+              .select("place_id, name, city, state, country, phone, email, website, maps_url")
               .order("created_at", { ascending: false })
               .range(from, from + PAGE - 1);
             if (error) return new Response(`DB error: ${error.message}`, { status: 500 });
@@ -55,22 +55,22 @@ export const Route = createFileRoute("/api/public/download-all")({
           }
 
           const headers = [
-            "الاسم", "المدينة", "الولاية/المنطقة", "الجوال",
-            "واتساب", "الموقع الإلكتروني", "الإيميل", "خرائط جوجل",
+            "الاسم", "المدينة", "الولاية/المنطقة", "الدولة",
+            "الجوال", "الإيميل", "الموقع الإلكتروني", "خرائط جوجل",
           ];
           const data: (string | number)[][] = [headers];
           for (const r of unique) {
             data.push([
               (r.name as string) ?? "", (r.city as string) ?? "", (r.state as string) ?? "",
-              (r.phone as string) ?? "", (r.whatsapp as string) ?? "", (r.website as string) ?? "",
-              (r.email as string) ?? "", (r.maps_url as string) ?? "",
+              (r.country as string) ?? "", (r.phone as string) ?? "",
+              (r.email as string) ?? "", (r.website as string) ?? "", (r.maps_url as string) ?? "",
             ]);
           }
 
           const ws = XLSX.utils.aoa_to_sheet(data);
           ws["!cols"] = [
             { wch: 36 }, { wch: 20 }, { wch: 16 }, { wch: 18 },
-            { wch: 18 }, { wch: 32 }, { wch: 28 }, { wch: 36 },
+            { wch: 18 }, { wch: 28 }, { wch: 32 }, { wch: 36 },
           ];
           (ws as unknown as { "!view"?: unknown })["!view"] = { RTL: true };
           ws["!autofilter"] = { ref: `A1:H${data.length}` };

@@ -24,27 +24,27 @@ export const Route = createFileRoute("/api/public/download/$jobId")({
 
           const { data: rows } = await supabaseAdmin
             .from("scrape_results")
-            .select("name, city, state, phone, whatsapp, website, email, maps_url")
+            .select("name, city, state, country, phone, email, website, maps_url")
             .eq("job_id", jobId)
             .order("city", { ascending: true });
 
           const headers = [
-            "الاسم", "المدينة", "الولاية/المنطقة", "الجوال",
-            "واتساب", "الموقع الإلكتروني", "الإيميل", "خرائط جوجل",
+            "الاسم", "المدينة", "الولاية/المنطقة", "الدولة",
+            "الجوال", "الإيميل", "الموقع الإلكتروني", "خرائط جوجل",
           ];
 
           const data: (string | number)[][] = [headers];
           for (const r of rows ?? []) {
             data.push([
-              r.name ?? "", r.city ?? "", r.state ?? "", r.phone ?? "",
-              r.whatsapp ?? "", r.website ?? "", r.email ?? "", r.maps_url ?? "",
+              r.name ?? "", r.city ?? "", r.state ?? "", r.country ?? (job.country ?? ""),
+              r.phone ?? "", r.email ?? "", r.website ?? "", r.maps_url ?? "",
             ]);
           }
 
           const ws = XLSX.utils.aoa_to_sheet(data);
           ws["!cols"] = [
             { wch: 36 }, { wch: 20 }, { wch: 16 }, { wch: 18 },
-            { wch: 18 }, { wch: 32 }, { wch: 28 }, { wch: 36 },
+            { wch: 18 }, { wch: 28 }, { wch: 32 }, { wch: 36 },
           ];
           (ws as unknown as { "!view"?: unknown })["!view"] = { RTL: true };
           ws["!autofilter"] = { ref: `A1:H${data.length}` };
