@@ -3,10 +3,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listJobs, getAggregateStats, deleteEmptyJobs, deleteJob } from "@/lib/library.functions";
 import { stopScrape } from "@/lib/scraper.functions";
+import { scrapeJobEmails } from "@/lib/email-scraper.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut } from "lucide-react";
+import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut, Mail, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
   beforeLoad: async () => {
@@ -29,6 +30,8 @@ function LibraryPage() {
   const stopFn = useServerFn(stopScrape);
   const delEmptyFn = useServerFn(deleteEmptyJobs);
   const delJobFn = useServerFn(deleteJob);
+  const scrapeEmailsFn = useServerFn(scrapeJobEmails);
+  const [search, setSearch] = useState("");
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => fn(),
@@ -51,7 +54,18 @@ function LibraryPage() {
     mutationFn: (id: string) => delJobFn({ data: { jobId: id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
   });
+  const emailMut = useMutation({
+    mutationFn: (id: string) => scrapeEmailsFn({ data: { jobId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
   const logout = async () => { await supabase.auth.signOut(); window.location.href = "/login"; };
+
+  const filteredJobs = data?.jobs.filter((j) => {
+    if (!search.trim()) return true;
+    const s = search.trim().toLowerCase();
+    return (j.activity as string).toLowerCase().includes(s) ||
+           (j.country as string).toLowerCase().includes(s);
+  }) ?? [];
 
   return (
     <main className="min-h-screen bg-background">
