@@ -1,14 +1,14 @@
 // منطق جمع البيانات من Google Places API (New) عبر بوابة موصل Lovable
-// + إثراء بإيميل وروابط سوشيال عبر Firecrawl
+// + إثراء بإيميل وروابط سوشيال (Firecrawl ⇒ HTML fallback)
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveCities, MOSQUE_KEYWORDS, isMosqueActivity } from "@/lib/country-cities";
+import { enrichFromWebsite, runInBatches, normalizeName, EMPTY_ENRICHMENT } from "@/lib/enrich.server";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_maps";
-const FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape";
 const MAX_RESULTS = 10000;
 const QUERY_CONCURRENCY = 3;
-const ENRICH_CONCURRENCY = 5;
+const ENRICH_CONCURRENCY = 4;
 
 const FIELD_MASK = [
   "places.id",
@@ -35,23 +35,8 @@ interface PlaceResult {
   maps_url: string;
 }
 
-interface EnrichmentResult {
-  email: string;
-  facebook: string;
-  instagram: string;
-  twitter: string;
-  youtube: string;
-  tiktok: string;
-  snapchat: string;
-}
-
-const EMPTY_ENRICHMENT: EnrichmentResult = {
-  email: "", facebook: "", instagram: "", twitter: "", youtube: "", tiktok: "", snapchat: "",
-};
-
 function cleanPhone(phone: string): string {
-  if (!phone) return "";
-  return phone.replace(/[^\d+]/g, "");
+  return phone ? phone.replace(/[^\d+]/g, "") : "";
 }
 
 function extractState(components: Array<{ types: string[]; shortText?: string; longText?: string }> | undefined): string {
@@ -124,88 +109,9 @@ async function searchQuery(query: string): Promise<PlaceResult[]> {
   return out;
 }
 
-// تشغيل promises على دفعات بحجم معيّن
-async function runInBatches<T, R>(
-  items: T[],
-  batchSize: number,
-  worker: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    const settled = await Promise.allSettled(batch.map(worker));
-    for (const s of settled) {
-      if (s.status === "fulfilled") results.push(s.value);
-    }
-  }
-  return results;
-}
-
-// ========== Firecrawl Enrichment ==========
-
-const SOCIAL_PATTERNS: Array<{ key: keyof EnrichmentResult; re: RegExp }> = [
-  { key: "facebook",  re: /https?:\/\/(?:www\.|m\.|web\.)?facebook\.com\/[A-Za-z0-9_.\-/]+/i },
-  { key: "instagram", re: /https?:\/\/(?:www\.)?instagram\.com\/[A-Za-z0-9_.\-/]+/i },
-  { key: "twitter",   re: /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[A-Za-z0-9_.\-/]+/i },
-  { key: "youtube",   re: /https?:\/\/(?:www\.|m\.)?youtube\.com\/(?:c\/|channel\/|user\/|@)[A-Za-z0-9_.\-/]+/i },
-  { key: "tiktok",    re: /https?:\/\/(?:www\.)?tiktok\.com\/@[A-Za-z0-9_.\-/]+/i },
-  { key: "snapchat",  re: /https?:\/\/(?:www\.)?snapchat\.com\/add\/[A-Za-z0-9_.\-/]+/i },
-];
-
-const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const EMAIL_BLACKLIST = /\.(png|jpg|jpeg|webp|gif|svg|css|js)$|wixpress|sentry|wordpress|example\.com|@2x|domain\.com/i;
-
-async function enrichFromWebsite(url: string): Promise<EnrichmentResult> {
-  const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
-  if (!FIRECRAWL_API_KEY || !url) return EMPTY_ENRICHMENT;
-
-  try {
-    const res = await fetch(FIRECRAWL_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${FIRECRAWL_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url,
-        formats: ["markdown", "links"],
-        onlyMainContent: false,
-      }),
-    });
-
-    if (!res.ok) return EMPTY_ENRICHMENT;
-    const data = await res.json() as {
-      data?: { markdown?: string; links?: string[] };
-      markdown?: string;
-      links?: string[];
-    };
-    const markdown = data.data?.markdown ?? data.markdown ?? "";
-    const links = data.data?.links ?? data.links ?? [];
-    const haystack = markdown + "\n" + links.join("\n");
-
-    const result: EnrichmentResult = { ...EMPTY_ENRICHMENT };
-
-    // إيميل: أول إيميل صالح بعد فلترة المعروف غير المفيد
-    const emails = haystack.match(EMAIL_RE) ?? [];
-    const goodEmail = emails.find((e) => !EMAIL_BLACKLIST.test(e));
-    if (goodEmail) result.email = goodEmail.toLowerCase();
-
-    // سوشيال: أول رابط مطابق لكل منصة
-    for (const { key, re } of SOCIAL_PATTERNS) {
-      const m = haystack.match(re);
-      if (m) result[key] = m[0].replace(/[)\].,;]+$/, "");
-    }
-
-    return result;
-  } catch {
-    return EMPTY_ENRICHMENT;
-  }
-}
-
 // ========== Main job ==========
 
 export async function runScrapeJob(jobId: string, country: string, activity: string): Promise<void> {
-  // فحص مسبق للمفاتيح
   if (!process.env.LOVABLE_API_KEY || !process.env.GOOGLE_MAPS_API_KEY) {
     const missing = [
       !process.env.LOVABLE_API_KEY && "LOVABLE_API_KEY",
@@ -222,7 +128,6 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
   const { cities } = resolveCities(country);
   const isMosque = isMosqueActivity(activity);
   const keywords = isMosque ? MOSQUE_KEYWORDS : [activity];
-  const hasFirecrawl = !!process.env.FIRECRAWL_API_KEY;
 
   await supabaseAdmin.from("scrape_jobs").update({
     status: "running",
@@ -230,8 +135,8 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
     updated_at: new Date().toISOString(),
   }).eq("id", jobId);
 
-  const seen = new Set<string>();
-  const enrichedIds = new Set<string>();
+  const seenPlaceIds = new Set<string>();
+  const seenDedupKeys = new Set<string>(); // مفتاح: name+city أو phone
   let totalSaved = 0;
   let failedCities = 0;
   let lastError = "";
@@ -247,7 +152,6 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
 
-      // كل كلمات البحث لهذه المدينة بالتوازي (3 معاً)
       const queries = keywords.map((kw) => `${kw} in ${city}`);
       const allResults: PlaceResult[] = [];
       const errors: string[] = [];
@@ -268,8 +172,20 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         continue;
       }
 
-      const fresh = allResults.filter((r) => !seen.has(r.place_id));
-      fresh.forEach((r) => seen.add(r.place_id));
+      // إزالة التكرار: place_id (Google) + (الاسم المُطبَّع + المدينة) + الهاتف
+      const fresh: PlaceResult[] = [];
+      for (const r of allResults) {
+        if (seenPlaceIds.has(r.place_id)) continue;
+        const nameKey = `n:${normalizeName(r.name)}|${city.toLowerCase()}`;
+        const phoneKey = r.phone ? `p:${r.phone}` : "";
+        if (seenDedupKeys.has(nameKey)) continue;
+        if (phoneKey && seenDedupKeys.has(phoneKey)) continue;
+        seenPlaceIds.add(r.place_id);
+        seenDedupKeys.add(nameKey);
+        if (phoneKey) seenDedupKeys.add(phoneKey);
+        fresh.push(r);
+      }
+
       if (fresh.length === 0) {
         await supabaseAdmin.from("scrape_jobs").update({
           cities_done: i + 1,
@@ -278,17 +194,13 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         continue;
       }
 
-      // إثراء النتائج التي لها موقع بالتوازي
-      const enrichments = new Map<string, EnrichmentResult>();
-      if (hasFirecrawl) {
-        const toEnrich = fresh.filter((r) => r.website && !enrichedIds.has(r.place_id));
-        const enrichResults = await runInBatches(toEnrich, ENRICH_CONCURRENCY, async (r) => {
-          const e = await enrichFromWebsite(r.website);
-          enrichedIds.add(r.place_id);
-          return [r.place_id, e] as const;
-        });
-        for (const [pid, e] of enrichResults) enrichments.set(pid, e);
-      }
+      // إثراء (Firecrawl ⇒ HTML fallback) — للنتائج التي لها موقع
+      const toEnrich = fresh.filter((r) => r.website);
+      const enrichResults = await runInBatches(toEnrich, ENRICH_CONCURRENCY, async (r) => {
+        const e = await enrichFromWebsite(r.website, r.phone);
+        return [r.place_id, e] as const;
+      });
+      const enrichments = new Map(enrichResults);
 
       const rows = fresh.map((r) => {
         const e = enrichments.get(r.place_id) ?? EMPTY_ENRICHMENT;
@@ -300,7 +212,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
           city,
           state: r.state,
           phone: r.phone,
-          whatsapp: r.whatsapp,
+          whatsapp: e.whatsapp || r.whatsapp,
           website: r.website,
           category: r.category,
           maps_url: r.maps_url,
@@ -356,4 +268,108 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
     }).eq("id", jobId);
     throw err;
   }
+}
+
+// ============================================================
+// إعادة إثراء وظيفة موجودة (استخراج إيميل/سوشيال بدون إعادة جمع)
+// ============================================================
+
+export async function reEnrichJob(jobId: string): Promise<{ updated: number; total: number }> {
+  // اقرأ الصفوف التي لديها موقع ولا تملك إيميل بعد
+  const { data: rows } = await supabaseAdmin
+    .from("scrape_results")
+    .select("id, website, phone, email")
+    .eq("job_id", jobId)
+    .neq("website", "")
+    .limit(5000);
+
+  if (!rows || rows.length === 0) return { updated: 0, total: 0 };
+
+  const targets = rows.filter((r) => !r.email);
+  let updated = 0;
+
+  await runInBatches(targets, ENRICH_CONCURRENCY, async (row) => {
+    const e = await enrichFromWebsite(row.website as string, (row.phone as string) ?? "");
+    if (!e.email && !e.facebook && !e.instagram && !e.whatsapp) return;
+    const patch: {
+      email?: string; facebook?: string; instagram?: string; twitter?: string;
+      youtube?: string; tiktok?: string; snapchat?: string; whatsapp?: string;
+    } = {};
+    if (e.email) patch.email = e.email;
+    if (e.facebook) patch.facebook = e.facebook;
+    if (e.instagram) patch.instagram = e.instagram;
+    if (e.twitter) patch.twitter = e.twitter;
+    if (e.youtube) patch.youtube = e.youtube;
+    if (e.tiktok) patch.tiktok = e.tiktok;
+    if (e.snapchat) patch.snapchat = e.snapchat;
+    if (e.whatsapp) patch.whatsapp = e.whatsapp;
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabaseAdmin.from("scrape_results").update(patch).eq("id", row.id as string);
+      if (!error) updated++;
+    }
+  });
+
+  return { updated, total: targets.length };
+}
+
+// ============================================================
+// إزالة التكرار من وظيفة موجودة (اسم مُطبَّع+مدينة، أو هاتف)
+// ============================================================
+
+export async function dedupJob(jobId: string): Promise<{ removed: number; kept: number }> {
+  const { data: rows } = await supabaseAdmin
+    .from("scrape_results")
+    .select("id, name, city, phone, email, website, created_at")
+    .eq("job_id", jobId)
+    .order("created_at", { ascending: true })
+    .limit(10000);
+
+  if (!rows || rows.length === 0) return { removed: 0, kept: 0 };
+
+  // نحتفظ بالصف الأغنى بالبيانات لكل مفتاح
+  const score = (r: { email?: string | null; website?: string | null; phone?: string | null }) =>
+    (r.email ? 2 : 0) + (r.website ? 1 : 0) + (r.phone ? 1 : 0);
+
+  const byKey = new Map<string, { id: string; score: number }>();
+  const toDelete: string[] = [];
+
+  for (const r of rows) {
+    const keys: string[] = [];
+    const nameKey = `n:${normalizeName((r.name as string) ?? "")}|${((r.city as string) ?? "").toLowerCase()}`;
+    keys.push(nameKey);
+    if (r.phone) keys.push(`p:${r.phone}`);
+    const myScore = score(r);
+    let dup = false;
+    for (const k of keys) {
+      const existing = byKey.get(k);
+      if (existing) {
+        dup = true;
+        if (myScore > existing.score) {
+          toDelete.push(existing.id);
+          byKey.set(k, { id: r.id as string, score: myScore });
+        } else {
+          toDelete.push(r.id as string);
+        }
+        break;
+      }
+    }
+    if (!dup) {
+      for (const k of keys) byKey.set(k, { id: r.id as string, score: myScore });
+    }
+  }
+
+  // حذف على دفعات
+  const unique = [...new Set(toDelete)];
+  for (let i = 0; i < unique.length; i += 200) {
+    const batch = unique.slice(i, i + 200);
+    await supabaseAdmin.from("scrape_results").delete().in("id", batch);
+  }
+
+  const finalCount = rows.length - unique.length;
+  await supabaseAdmin.from("scrape_jobs").update({
+    results_count: finalCount,
+    updated_at: new Date().toISOString(),
+  }).eq("id", jobId);
+
+  return { removed: unique.length, kept: finalCount };
 }
