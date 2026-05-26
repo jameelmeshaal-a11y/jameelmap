@@ -1,18 +1,24 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { startScrape, getJobStatus } from "@/lib/scraper.functions";
+import { startScrape, getJobStatus, stopScrape } from "@/lib/scraper.functions";
 import { resolveCities } from "@/lib/country-cities";
 import { CityPicker } from "@/components/city-picker";
+import { Logo } from "@/components/logo";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle } from "lucide-react";
+import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle, StopCircle, LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/login" });
+  },
   component: HomePage,
   head: () => ({
     meta: [
@@ -30,6 +36,8 @@ function HomePage() {
 
   const startFn = useServerFn(startScrape);
   const statusFn = useServerFn(getJobStatus);
+  const stopFn = useServerFn(stopScrape);
+  const stopMut = useMutation({ mutationFn: (id: string) => stopFn({ data: { jobId: id } }) });
 
   // قائمة المدن المتاحة للدولة المُدخلة
   const availableCities = useMemo(() => {

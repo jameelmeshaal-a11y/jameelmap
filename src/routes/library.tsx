@@ -1,12 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { listJobs, getAggregateStats } from "@/lib/library.functions";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { listJobs, getAggregateStats, deleteEmptyJobs, deleteJob } from "@/lib/library.functions";
+import { stopScrape } from "@/lib/scraper.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Download, FileText, Home, Loader2, Database } from "lucide-react";
+import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw redirect({ to: "/login" });
+  },
   component: LibraryPage,
   head: () => ({
     meta: [
@@ -17,8 +23,12 @@ export const Route = createFileRoute("/library")({
 });
 
 function LibraryPage() {
+  const qc = useQueryClient();
   const fn = useServerFn(listJobs);
   const statsFn = useServerFn(getAggregateStats);
+  const stopFn = useServerFn(stopScrape);
+  const delEmptyFn = useServerFn(deleteEmptyJobs);
+  const delJobFn = useServerFn(deleteJob);
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => fn(),
@@ -29,6 +39,19 @@ function LibraryPage() {
     queryFn: () => statsFn(),
     refetchInterval: 15000,
   });
+  const stopMut = useMutation({
+    mutationFn: (id: string) => stopFn({ data: { jobId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const delEmptyMut = useMutation({
+    mutationFn: () => delEmptyFn(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const delJobMut = useMutation({
+    mutationFn: (id: string) => delJobFn({ data: { jobId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const logout = async () => { await supabase.auth.signOut(); window.location.href = "/login"; };
 
   return (
     <main className="min-h-screen bg-background">
