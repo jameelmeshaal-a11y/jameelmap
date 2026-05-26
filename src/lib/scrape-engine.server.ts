@@ -261,6 +261,11 @@ async function processCity(
 
   void EMPTY_ENRICHMENT;
 
+  // اكتب الكاش (3 أيام) بعد الاكتمال
+  if (fresh.length > 0) {
+    try { await writeSearchCache(country, activity, city, fresh); } catch { /* ignore */ }
+  }
+
   await updateCity(jobId, city, {
     status: "done",
     progress: 100,
@@ -328,6 +333,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
   let totalSaved = 0;
   let citiesDone = 0;
   let citiesFailed = 0;
+  let citiesFromCache = 0;
   let lastError = "";
 
   const remainingBudget = () => Math.max(0, maxResults - totalSaved);
@@ -345,11 +351,12 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
 
-      const res = await processCity(jobId, city, country, keywords, globalSeen, globalDedupKeys, remainingBudget);
+      const res = await processCity(jobId, city, country, activity, keywords, globalSeen, globalDedupKeys, remainingBudget);
       if (res.error && res.error !== "stopped") {
         citiesFailed++;
         lastError = res.error;
       }
+      if (res.fromCache) citiesFromCache++;
       totalSaved += res.saved;
       citiesDone++;
 
