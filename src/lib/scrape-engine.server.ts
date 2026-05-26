@@ -9,6 +9,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveCities, MOSQUE_KEYWORDS, isMosqueActivity } from "@/lib/country-cities";
 import { enrichFromWebsite, runInBatches, normalizeName, EMPTY_ENRICHMENT } from "@/lib/enrich.server";
+import { readSearchCache, writeSearchCache } from "@/lib/cache.server";
 import {
   geocodeCity, tileViewport, searchCellAdaptive, pool,
   type RawPlace,
