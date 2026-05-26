@@ -13,6 +13,32 @@ export const listJobs = createServerFn({ method: "GET" }).handler(async () => {
   return { jobs: data ?? [] };
 });
 
+export const getAggregateStats = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // إجمالي السجلات + تقدير الفريد عبر place_id distinct (نقرأ كل place_ids بدفعات)
+  const seen = new Set<string>();
+  let total = 0;
+  let from = 0;
+  const PAGE = 1000;
+  for (;;) {
+    const { data, error } = await supabaseAdmin
+      .from("scrape_results")
+      .select("place_id")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    total += data.length;
+    for (const r of data) {
+      const pid = (r as { place_id?: string }).place_id;
+      if (pid) seen.add(pid);
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+    if (from > 50_000) break;
+  }
+  return { total, uniquePlaces: seen.size };
+});
+
 export const getJobDetail = createServerFn({ method: "POST" })
   .inputValidator((d: { jobId: string; search?: string }) =>
     z.object({ jobId: z.string().uuid(), search: z.string().max(100).optional() }).parse(d))
@@ -39,7 +65,6 @@ export const getJobDetail = createServerFn({ method: "POST" })
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
 
-    // إحصاءات
     const { count: total } = await supabaseAdmin
       .from("scrape_results").select("id", { count: "exact", head: true }).eq("job_id", data.jobId);
     const { count: withEmail } = await supabaseAdmin

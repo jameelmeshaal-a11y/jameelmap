@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LibraryJobIdRouteImport } from './routes/library.$jobId'
+import { Route as ApiPublicDownloadAllRouteImport } from './routes/api/public/download-all'
 import { Route as ApiPublicRunJobJobIdRouteImport } from './routes/api/public/run-job.$jobId'
 import { Route as ApiPublicReenrichJobIdRouteImport } from './routes/api/public/reenrich.$jobId'
 import { Route as ApiPublicDownloadJobIdRouteImport } from './routes/api/public/download.$jobId'
@@ -30,6 +31,11 @@ const LibraryJobIdRoute = LibraryJobIdRouteImport.update({
   id: '/$jobId',
   path: '/$jobId',
   getParentRoute: () => LibraryRoute,
+} as any)
+const ApiPublicDownloadAllRoute = ApiPublicDownloadAllRouteImport.update({
+  id: '/api/public/download-all',
+  path: '/api/public/download-all',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRunJobJobIdRoute = ApiPublicRunJobJobIdRouteImport.update({
   id: '/api/public/run-job/$jobId',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRouteWithChildren
   '/library/$jobId': typeof LibraryJobIdRoute
+  '/api/public/download-all': typeof ApiPublicDownloadAllRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
   '/api/public/reenrich/$jobId': typeof ApiPublicReenrichJobIdRoute
   '/api/public/run-job/$jobId': typeof ApiPublicRunJobJobIdRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/library': typeof LibraryRouteWithChildren
   '/library/$jobId': typeof LibraryJobIdRoute
+  '/api/public/download-all': typeof ApiPublicDownloadAllRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
   '/api/public/reenrich/$jobId': typeof ApiPublicReenrichJobIdRoute
   '/api/public/run-job/$jobId': typeof ApiPublicRunJobJobIdRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/library': typeof LibraryRouteWithChildren
   '/library/$jobId': typeof LibraryJobIdRoute
+  '/api/public/download-all': typeof ApiPublicDownloadAllRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
   '/api/public/reenrich/$jobId': typeof ApiPublicReenrichJobIdRoute
   '/api/public/run-job/$jobId': typeof ApiPublicRunJobJobIdRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/library'
     | '/library/$jobId'
+    | '/api/public/download-all'
     | '/api/public/download/$jobId'
     | '/api/public/reenrich/$jobId'
     | '/api/public/run-job/$jobId'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/library'
     | '/library/$jobId'
+    | '/api/public/download-all'
     | '/api/public/download/$jobId'
     | '/api/public/reenrich/$jobId'
     | '/api/public/run-job/$jobId'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/library'
     | '/library/$jobId'
+    | '/api/public/download-all'
     | '/api/public/download/$jobId'
     | '/api/public/reenrich/$jobId'
     | '/api/public/run-job/$jobId'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRouteWithChildren
+  ApiPublicDownloadAllRoute: typeof ApiPublicDownloadAllRoute
   ApiPublicDownloadJobIdRoute: typeof ApiPublicDownloadJobIdRoute
   ApiPublicReenrichJobIdRoute: typeof ApiPublicReenrichJobIdRoute
   ApiPublicRunJobJobIdRoute: typeof ApiPublicRunJobJobIdRoute
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/library/$jobId'
       preLoaderRoute: typeof LibraryJobIdRouteImport
       parentRoute: typeof LibraryRoute
+    }
+    '/api/public/download-all': {
+      id: '/api/public/download-all'
+      path: '/api/public/download-all'
+      fullPath: '/api/public/download-all'
+      preLoaderRoute: typeof ApiPublicDownloadAllRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/run-job/$jobId': {
       id: '/api/public/run-job/$jobId'
@@ -168,6 +188,7 @@ const LibraryRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRouteWithChildren,
+  ApiPublicDownloadAllRoute: ApiPublicDownloadAllRoute,
   ApiPublicDownloadJobIdRoute: ApiPublicDownloadJobIdRoute,
   ApiPublicReenrichJobIdRoute: ApiPublicReenrichJobIdRoute,
   ApiPublicRunJobJobIdRoute: ApiPublicRunJobJobIdRoute,
@@ -175,3 +196,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

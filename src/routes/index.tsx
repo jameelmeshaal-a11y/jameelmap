@@ -1,20 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { startScrape, getJobStatus } from "@/lib/scraper.functions";
+import { resolveCities } from "@/lib/country-cities";
+import { CityPicker } from "@/components/city-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles } from "lucide-react";
+import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
   head: () => ({
     meta: [
-      { title: "عالم جميل — مستخرج بيانات الأماكن" },
+      { title: "جميل ماب — مستخرج بيانات الأماكن" },
       { name: "description", content: "أدخل الدولة والنشاط واحصل على ملف Excel جاهز بكل الأماكن من خرائط Google." },
     ],
   }),
@@ -23,16 +25,29 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   const [country, setCountry] = useState("");
   const [activity, setActivity] = useState("");
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [jobId, setJobId] = useState<string | null>(null);
 
   const startFn = useServerFn(startScrape);
   const statusFn = useServerFn(getJobStatus);
 
+  // قائمة المدن المتاحة للدولة المُدخلة
+  const availableCities = useMemo(() => {
+    if (!country.trim()) return [] as string[];
+    return resolveCities(country.trim()).cities;
+  }, [country]);
+
+  // عند تغيير الدولة: حدّد الكل افتراضياً (للدول المعروفة فقط)
+  const handleCountryChange = (val: string) => {
+    setCountry(val);
+    const cities = resolveCities(val.trim()).cities;
+    // إن كانت الدولة معروفة (>1 مدينة) — حدّد الكل، وإلا فارغ ليُكتب يدوياً
+    setSelectedCities(cities.length > 1 ? cities : []);
+  };
+
   const startMut = useMutation({
-    mutationFn: async (vars: { country: string; activity: string }) => {
+    mutationFn: async (vars: { country: string; activity: string; cities: string[] }) => {
       const res = await startFn({ data: vars });
-      // أطلق المهمة فعلياً عبر مسار يبقى الاتصال مفتوحاً حتى الانتهاء
-      // لا ننتظر — المتصفح يحافظ على Worker حياً تلقائياً
       void fetch(`/api/public/run-job/${res.jobId}`, { method: "POST" }).catch(() => {});
       return res;
     },
@@ -45,16 +60,18 @@ function HomePage() {
     enabled: !!jobId,
     refetchInterval: (q) => {
       const s = q.state.data?.status;
-      return s === "completed" || s === "failed" ? false : 2000;
+      return s === "completed" || s === "failed" ? false : 2500;
     },
   });
 
   const isRunning = jobId && status.data && status.data.status !== "completed" && status.data.status !== "failed";
   const isDone = status.data?.status === "completed";
   const isFailed = status.data?.status === "failed";
-  const progress = status.data && status.data.citiesTotal > 0
-    ? Math.round((status.data.citiesDone / status.data.citiesTotal) * 100)
-    : 0;
+
+  const canStart =
+    country.trim() &&
+    activity.trim() &&
+    (availableCities.length === 0 ? true : selectedCities.length > 0);
 
   return (
     <main className="min-h-screen bg-background">
@@ -76,9 +93,9 @@ function HomePage() {
               <Sparkles className="h-4 w-4" />
               <span>منصة استخراج بيانات الأماكن</span>
             </div>
-            <h1 className="mt-5 text-5xl font-bold tracking-tight">عالم جميل</h1>
+            <h1 className="mt-5 text-5xl font-bold tracking-tight">جميل ماب</h1>
             <p className="mx-auto mt-3 max-w-xl text-lg text-white/90">
-              أدخل الدولة والنشاط، نجمع لك كل البيانات من خرائط Google ونصدّرها كملف Excel جاهز.
+              اختر الدولة والمدن والنشاط، نجمع لك كل الأماكن من خرائط Google ونصدّرها كملف Excel جاهز.
             </p>
           </div>
         </div>
@@ -89,45 +106,64 @@ function HomePage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (!country.trim() || !activity.trim()) return;
+              if (!canStart) return;
               setJobId(null);
-              startMut.mutate({ country: country.trim(), activity: activity.trim() });
+              startMut.mutate({
+                country: country.trim(),
+                activity: activity.trim(),
+                cities: availableCities.length > 0 ? selectedCities : [country.trim()],
+              });
             }}
-            className="grid gap-5 sm:grid-cols-2"
+            className="space-y-5"
           >
-            <div className="space-y-2">
-              <Label htmlFor="country" className="text-sm font-semibold">الدولة</Label>
-              <Input
-                id="country"
-                placeholder="مثال: USA، السعودية، مصر، تركيا"
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="country" className="text-sm font-semibold">الدولة</Label>
+                <Input
+                  id="country"
+                  placeholder="مثال: USA، السعودية، مصر، تركيا"
+                  value={country}
+                  onChange={(e) => handleCountryChange(e.target.value)}
+                  disabled={!!isRunning}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="activity" className="text-sm font-semibold">النشاط</Label>
+                <Input
+                  id="activity"
+                  placeholder="مثال: Mosque، مطعم، صيدلية، فندق"
+                  value={activity}
+                  onChange={(e) => setActivity(e.target.value)}
+                  disabled={!!isRunning}
+                  required
+                />
+              </div>
+            </div>
+
+            {availableCities.length > 0 && (
+              <CityPicker
+                cities={availableCities}
+                selected={selectedCities}
+                onChange={setSelectedCities}
                 disabled={!!isRunning}
-                required
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="activity" className="text-sm font-semibold">النشاط</Label>
-              <Input
-                id="activity"
-                placeholder="مثال: Mosque، مطعم، صيدلية، فندق"
-                value={activity}
-                onChange={(e) => setActivity(e.target.value)}
-                disabled={!!isRunning}
-                required
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Button type="submit" disabled={!!isRunning || startMut.isPending} className="w-full" size="lg">
-                {startMut.isPending ? (
-                  <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري التهيئة...</>
-                ) : isRunning ? (
-                  <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري الجمع...</>
-                ) : (
-                  <><Search className="ml-2 h-5 w-5" /> ابدأ الجمع</>
-                )}
-              </Button>
-            </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={!canStart || !!isRunning || startMut.isPending}
+              className="w-full"
+              size="lg"
+            >
+              {startMut.isPending ? (
+                <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري التهيئة...</>
+              ) : isRunning ? (
+                <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري الجمع...</>
+              ) : (
+                <><Search className="ml-2 h-5 w-5" /> ابدأ الجمع</>
+              )}
+            </Button>
           </form>
 
           {startMut.isError && (
@@ -149,17 +185,51 @@ function HomePage() {
               </span>
             </div>
 
-            <div className="mt-4 space-y-3">
-              <Progress value={progress} />
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
+              <span>المدن: {status.data.citiesDone} / {status.data.citiesTotal}</span>
+              <span className="font-semibold text-primary">
+                تم جمع {status.data.resultsCount} نتيجة فريدة
+              </span>
+              {status.data.currentCity && !isDone && (
                 <span className="flex items-center gap-1.5">
-                  <MapPin className="h-4 w-4" />
-                  {status.data.currentCity || (isDone ? "انتهى" : "—")}
+                  <MapPin className="h-4 w-4" /> {status.data.currentCity}
                 </span>
-                <span>المدن: {status.data.citiesDone} / {status.data.citiesTotal}</span>
-                <span className="font-semibold text-primary">النتائج: {status.data.resultsCount}</span>
-              </div>
+              )}
             </div>
+
+            {/* شريط تقدم لكل مدينة */}
+            {status.data.cities.length > 0 && (
+              <div className="mt-5 max-h-96 space-y-2 overflow-y-auto rounded-md border bg-card/50 p-3">
+                {status.data.cities.map((c) => (
+                  <div key={c.city} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {c.status === "done" ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                        ) : c.status === "running" ? (
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                        ) : c.status === "failed" ? (
+                          <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                        ) : (
+                          <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="truncate font-medium">{c.city}</span>
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {c.results_count} نتيجة · {c.progress}%
+                      </span>
+                    </div>
+                    <Progress value={c.progress} className="h-1.5" />
+                    {c.current_step && (
+                      <p className="truncate text-xs text-muted-foreground">{c.current_step}</p>
+                    )}
+                    {c.error_message && (
+                      <p className="truncate text-xs text-destructive">{c.error_message}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {isFailed && (
               <p className="mt-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">

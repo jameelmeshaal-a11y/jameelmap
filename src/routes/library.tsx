@@ -1,16 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listJobs } from "@/lib/library.functions";
+import { listJobs, getAggregateStats } from "@/lib/library.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Download, FileText, Home, Loader2 } from "lucide-react";
+import { ArrowRight, Download, FileText, Home, Loader2, Database } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
   component: LibraryPage,
   head: () => ({
     meta: [
-      { title: "مكتبة النتائج — عالم جميل" },
+      { title: "مكتبة النتائج — جميل ماب" },
       { name: "description", content: "جميع عمليات الجمع السابقة وعدد النتائج وتحميل ملفات Excel." },
     ],
   }),
@@ -18,10 +18,16 @@ export const Route = createFileRoute("/library")({
 
 function LibraryPage() {
   const fn = useServerFn(listJobs);
+  const statsFn = useServerFn(getAggregateStats);
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => fn(),
     refetchInterval: 5000,
+  });
+  const stats = useQuery({
+    queryKey: ["aggregate-stats"],
+    queryFn: () => statsFn(),
+    refetchInterval: 15000,
   });
 
   return (
@@ -29,10 +35,32 @@ function LibraryPage() {
       <header className="border-b bg-card">
         <div className="container mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <h1 className="text-2xl font-bold">مكتبة النتائج</h1>
-          <Link to="/">
-            <Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/public/download-all"
+              download
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              <Download className="h-4 w-4" /> تصدير مجمّع
+            </a>
+            <Link to="/">
+              <Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button>
+            </Link>
+          </div>
         </div>
+        {stats.data && (
+          <div className="container mx-auto max-w-5xl px-6 pb-3">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <Database className="h-4 w-4" />
+                إجمالي السجلات: <strong className="text-foreground">{stats.data.total.toLocaleString("en")}</strong>
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-primary">
+                سجلات فريدة عبر كل العمليات: <strong>{stats.data.uniquePlaces.toLocaleString("en")}</strong>
+              </span>
+            </div>
+          </div>
+        )}
       </header>
 
       <section className="container mx-auto max-w-5xl px-4 py-8">
