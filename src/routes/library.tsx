@@ -57,18 +57,16 @@ function LibraryPage() {
     <main className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="container mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <h1 className="text-2xl font-bold">مكتبة النتائج</h1>
+          <div className="flex items-center gap-2"><Home className="h-5 w-5" /><h1 className="text-2xl font-bold">مكتبة النتائج</h1></div>
           <div className="flex items-center gap-2">
-            <a
-              href="/api/public/download-all"
-              download
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-            >
+            <Button variant="outline" size="sm" onClick={() => delEmptyMut.mutate()} disabled={delEmptyMut.isPending}>
+              <Trash2 className="ml-1.5 h-4 w-4" /> حذف الفارغة
+            </Button>
+            <a href="/api/public/download-all" download className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               <Download className="h-4 w-4" /> تصدير مجمّع
             </a>
-            <Link to="/">
-              <Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button>
-            </Link>
+            <Link to="/"><Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button></Link>
+            <Button variant="ghost" size="sm" onClick={logout}><LogOut className="ml-1.5 h-4 w-4" /> خروج</Button>
           </div>
         </div>
         {stats.data && (
