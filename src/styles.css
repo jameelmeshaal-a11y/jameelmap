@@ -5,10 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 9999px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -29,51 +30,66 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-navy: var(--navy);
+  --color-navy-light: var(--navy-light);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --color-gold-dark: var(--gold-dark);
 }
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.99 0.005 130);
-  --foreground: oklch(0.2 0.03 160);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.03 160);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.03 160);
-  --primary: oklch(0.45 0.13 155);
-  --primary-foreground: oklch(0.99 0.005 130);
-  --primary-glow: oklch(0.6 0.15 155);
-  --secondary: oklch(0.96 0.02 140);
-  --secondary-foreground: oklch(0.3 0.05 160);
-  --muted: oklch(0.96 0.01 140);
-  --muted-foreground: oklch(0.5 0.02 160);
-  --accent: oklch(0.92 0.05 155);
-  --accent-foreground: oklch(0.3 0.05 160);
-  --destructive: oklch(0.58 0.22 25);
-  --destructive-foreground: oklch(0.99 0.005 130);
-  --border: oklch(0.9 0.02 140);
-  --input: oklch(0.92 0.02 140);
-  --ring: oklch(0.45 0.13 155);
-  --gradient-hero: linear-gradient(135deg, oklch(0.45 0.13 155), oklch(0.6 0.15 155));
-  --shadow-elegant: 0 10px 40px -10px oklch(0.45 0.13 155 / 0.25);
+  --radius: 14px;
+  /* Brand: Navy + Gold */
+  --navy:        oklch(0.22 0.11 268);  /* #0D1B4B */
+  --navy-light:  oklch(0.28 0.13 268);  /* #152266 */
+  --gold:        oklch(0.74 0.12 82);   /* #C9A84C */
+  --gold-light:  oklch(0.87 0.07 82);   /* #E8D5A3 */
+  --gold-dark:   oklch(0.58 0.12 70);   /* #A07830 */
+
+  --background:        oklch(0.99 0.005 80);
+  --foreground:        var(--navy);
+  --card:              oklch(1 0 0);
+  --card-foreground:   var(--navy);
+  --popover:           oklch(1 0 0);
+  --popover-foreground: var(--navy);
+  --primary:              var(--navy);
+  --primary-foreground:   oklch(1 0 0);
+  --primary-glow:         var(--navy-light);
+  --secondary:            oklch(0.97 0.01 80);   /* #F7F6F2 */
+  --secondary-foreground: var(--navy);
+  --muted:                oklch(0.95 0.012 80);  /* #EFECE4 */
+  --muted-foreground:     oklch(0.5 0.02 250);   /* #4A5568 → muted */
+  --accent:               oklch(0.95 0.012 80);
+  --accent-foreground:    var(--navy);
+  --destructive:          oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border:               oklch(0.88 0.015 80);  /* #DDD8CC */
+  --input:                oklch(0.92 0.012 80);
+  --ring:                 var(--gold);
+
+  --gradient-hero: linear-gradient(135deg, var(--navy), var(--navy-light));
+  --gradient-progress: linear-gradient(90deg, var(--navy), var(--gold));
+  --shadow-elegant: 0 2px 12px oklch(0.22 0.11 268 / 0.10);
 }
 
 .dark {
-  --background: oklch(0.18 0.02 160);
-  --foreground: oklch(0.95 0.01 140);
-  --card: oklch(0.22 0.025 160);
-  --card-foreground: oklch(0.95 0.01 140);
-  --primary: oklch(0.7 0.15 155);
-  --primary-foreground: oklch(0.18 0.02 160);
-  --primary-glow: oklch(0.8 0.15 155);
-  --secondary: oklch(0.28 0.03 160);
-  --secondary-foreground: oklch(0.95 0.01 140);
-  --muted: oklch(0.28 0.03 160);
-  --muted-foreground: oklch(0.7 0.02 140);
-  --accent: oklch(0.32 0.05 155);
-  --accent-foreground: oklch(0.95 0.01 140);
+  --background: oklch(0.18 0.05 268);
+  --foreground: oklch(0.97 0.01 80);
+  --card: oklch(0.22 0.08 268);
+  --card-foreground: oklch(0.97 0.01 80);
+  --popover: oklch(0.22 0.08 268);
+  --popover-foreground: oklch(0.97 0.01 80);
+  --primary: var(--gold);
+  --primary-foreground: var(--navy);
+  --secondary: oklch(0.28 0.08 268);
+  --secondary-foreground: oklch(0.97 0.01 80);
+  --muted: oklch(0.28 0.08 268);
+  --muted-foreground: oklch(0.75 0.02 80);
+  --accent: oklch(0.32 0.09 268);
+  --accent-foreground: oklch(0.97 0.01 80);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.7 0.15 155);
+  --ring: var(--gold);
 }
 
 @layer base {
@@ -81,7 +97,7 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: "Cairo", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+    font-family: "Noto Sans Arabic", "Cairo", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
     font-feature-settings: "kern", "liga", "calt";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
