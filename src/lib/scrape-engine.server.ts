@@ -218,11 +218,9 @@ async function processCity(
           if (e.snapchat) patch.snapchat = e.snapchat;
           if (e.whatsapp) patch.whatsapp = e.whatsapp;
           patch.email_scraped_at = new Date().toISOString();
-          await supabaseAdmin
-            .from("scrape_results")
-            .update(patch)
-            .eq("job_id", jobId)
-            .eq("place_id", r.place_id);
+          await (supabaseAdmin.from("scrape_results") as unknown as {
+            update: (p: unknown) => { eq: (a: string, b: string) => { eq: (a: string, b: string) => Promise<unknown> } };
+          }).update(patch).eq("job_id", jobId).eq("place_id", r.place_id);
         }
       } catch {
         /* تجاهل أخطاء الإثراء الفردية */
