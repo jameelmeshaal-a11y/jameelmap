@@ -17,6 +17,39 @@ export const startScrape = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const userId = context.userId;
 
+    // 1) فحص الصلاحيات (الإدمن يتجاوز)
+    const { data: roleRow } = await supabaseAdmin
+      .from("user_roles").select("role").eq("user_id", userId).maybeSingle();
+    const isAdmin = roleRow?.role === "admin";
+
+    if (!isAdmin) {
+      const { data: perms } = await supabaseAdmin
+        .from("user_permissions")
+        .select("can_search, max_searches_per_day, allowed_countries")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!perms || !perms.can_search) {
+        throw new Error("ليست لديك صلاحية بدء البحث. تواصل مع المشرف.");
+      }
+
+      const allowed = (perms.allowed_countries as string[]) ?? [];
+      if (allowed.length > 0 && !allowed.includes(data.country)) {
+        throw new Error(`الدولة "${data.country}" غير مسموحة لحسابك. المسموح: ${allowed.join(", ")}`);
+      }
+
+      // عدّاد اليوم
+      const since = new Date(); since.setHours(0, 0, 0, 0);
+      const { count } = await supabaseAdmin
+        .from("scrape_jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", since.toISOString());
+      if ((count ?? 0) >= (perms.max_searches_per_day ?? 10)) {
+        throw new Error(`تجاوزت الحد اليومي (${perms.max_searches_per_day}). جرّب غداً.`);
+      }
+    }
+
     const { data: job, error } = await supabaseAdmin
       .from("scrape_jobs")
       .insert({
@@ -25,6 +58,8 @@ export const startScrape = createServerFn({ method: "POST" })
         status: "pending",
         user_id: userId,
         max_results: data.maxResults ?? 2000,
+        selected_cities: data.cities ?? [],
+        total_cities: data.cities?.length ?? 0,
       })
       .select("id")
       .single();

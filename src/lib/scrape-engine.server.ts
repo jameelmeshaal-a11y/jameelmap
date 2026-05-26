@@ -397,6 +397,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
       current_city: "",
       cities_done: cities.length,
       results_count: totalSaved,
+      from_cache: citiesFromCache > 0,
       error_message: citiesFailed > 0 ? `تنبيه: فشلت ${citiesFailed} مدينة` : "",
       updated_at: new Date().toISOString(),
     }).eq("id", jobId);
