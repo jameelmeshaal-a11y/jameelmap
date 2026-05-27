@@ -12,10 +12,12 @@ import {
 } from "lucide-react";
 
 import { requireBrowserUser } from "@/lib/auth-guards";
+import { PageErrorComponent } from "@/components/page-error-boundary";
 
 export const Route = createFileRoute("/library/$jobId")({
   beforeLoad: requireBrowserUser,
   component: JobDetailPage,
+  errorComponent: PageErrorComponent,
 });
 
 function JobDetailPage() {

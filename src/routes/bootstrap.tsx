@@ -11,8 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { Loader2, ShieldCheck } from "lucide-react";
 
+import { PageErrorComponent } from "@/components/page-error-boundary";
+
 export const Route = createFileRoute("/bootstrap")({
   component: BootstrapPage,
+  errorComponent: PageErrorComponent,
   head: () => ({ meta: [{ title: "تهيئة المسؤول — جميل ماب" }] }),
 });
 
