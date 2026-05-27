@@ -8,6 +8,9 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveCities, MOSQUE_KEYWORDS, isMosqueActivity } from "@/lib/country-cities";
+import { enrichFromWebsite, runInBatches, normalizeName } from "@/lib/enrich.server";
+
+const ENRICH_CONCURRENCY = 4;
 import { readSearchCache, writeSearchCache } from "@/lib/cache.server";
 import {
   geocodeCity, tileViewport, searchCellAdaptive, pool,
@@ -347,7 +350,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
 
-      const res = await processCity(jobId, city, country, activity, keywords, globalSeen, globalDedupKeys, remainingBudget);
+      const res = await processCity(jobId, city, country, activity, keywords, globalSeen, remainingBudget);
       if (res.error && res.error !== "stopped") {
         citiesFailed++;
         lastError = res.error;
