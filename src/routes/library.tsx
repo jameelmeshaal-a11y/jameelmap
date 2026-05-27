@@ -147,6 +147,11 @@ function LibraryPage() {
                         <Zap className="h-3 w-3" /> من الكاش
                       </span>
                     ) : null}
+                    {isStuck(j) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                        <AlertTriangle className="h-3 w-3" /> معلّقة
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(j.created_at as string).toLocaleString("ar")} · {j.cities_done}/{j.cities_total} مدينة
@@ -159,9 +164,14 @@ function LibraryPage() {
                   <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
                     {j.results_count} نتيجة
                   </span>
-                  {(j.status === "running" || j.status === "pending") && (
+                  {(j.status === "running" || j.status === "pending") && !isStuck(j) && (
                     <Button variant="destructive" size="sm" onClick={() => stopMut.mutate(j.id as string)} disabled={stopMut.isPending}>
                       <StopCircle className="ml-1.5 h-4 w-4" /> إيقاف
+                    </Button>
+                  )}
+                  {(j.status === "stopped" || j.status === "failed" || isStuck(j)) && (
+                    <Button variant="default" size="sm" onClick={() => resumeMut.mutate(j.id as string)} disabled={resumeMut.isPending}>
+                      <Play className="ml-1.5 h-4 w-4" /> استئناف
                     </Button>
                   )}
                   {(j.status === "completed" || j.status === "stopped") && j.results_count > 0 && (
@@ -197,6 +207,7 @@ function StatusBadge({ status }: { status: string }) {
     pending: { label: "في الانتظار", cls: "bg-muted text-muted-foreground" },
     running: { label: "قيد التشغيل", cls: "bg-blue-100 text-blue-800" },
     completed: { label: "مكتملة", cls: "bg-emerald-100 text-emerald-800" },
+    stopped: { label: "موقوفة", cls: "bg-amber-100 text-amber-800" },
     failed: { label: "فشلت", cls: "bg-red-100 text-red-800" },
   };
   const c = cfg[status] ?? { label: status, cls: "bg-muted" };
