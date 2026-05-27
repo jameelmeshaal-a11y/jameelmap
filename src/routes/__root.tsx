@@ -87,13 +87,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
 
-function RootShell({ children }: { children: React.ReactNode }) {
+function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl">
       <head>
@@ -127,10 +126,12 @@ function AuthListener() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthListener />
-      <Outlet />
-      <Toaster richColors position="top-center" />
-    </QueryClientProvider>
+    <RootDocument>
+      <QueryClientProvider client={queryClient}>
+        <AuthListener />
+        <Outlet />
+        <Toaster richColors position="top-center" />
+      </QueryClientProvider>
+    </RootDocument>
   );
 }
