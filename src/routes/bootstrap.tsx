@@ -31,7 +31,7 @@ function BootstrapPage() {
     onSuccess: async () => {
       await supabase.auth.signInWithPassword({ email, password });
       setDone(true);
-      setTimeout(() => navigate({ to: "/" }), 1200);
+      setTimeout(() => window.location.assign("/"), 1200);
     },
   });
 
