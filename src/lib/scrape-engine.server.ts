@@ -328,7 +328,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
   }).eq("id", jobId);
 
   const globalSeen = new Set<string>();
-  const globalDedupKeys = new Set<string>();
+  // Dedup عبر place_id فقط (المفتاح الفريد المضمون)
   let totalSaved = initialSaved;
   let citiesDone = initialDone;
   let citiesFailed = 0;
