@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/bootstrap")({
 });
 
 function BootstrapPage() {
-  const navigate = useNavigate();
+  
   const checkFn = useServerFn(checkAdminExists);
   const bootFn = useServerFn(bootstrapFirstAdmin);
   const [email, setEmail] = useState("ceo@salasah.sa");
@@ -31,7 +31,7 @@ function BootstrapPage() {
     onSuccess: async () => {
       await supabase.auth.signInWithPassword({ email, password });
       setDone(true);
-      setTimeout(() => navigate({ to: "/" }), 1200);
+      setTimeout(() => window.location.assign("/"), 1200);
     },
   });
 

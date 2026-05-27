@@ -108,15 +108,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function AuthListener() {
-  const router = useRouter();
   const qc = useQueryClient();
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      router.invalidate();
-      qc.invalidateQueries();
+    let first = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      // تجاهل أول حدث (INITIAL_SESSION) لأنه يطلق فور الاشتراك دون تغيير فعلي
+      if (first) { first = false; return; }
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        // نُبطل كاش الاستعلامات فقط — بدون router.invalidate() حتى لا نُلغي انتقال الدخول
+        qc.invalidateQueries();
+      }
     });
     return () => subscription.unsubscribe();
-  }, [router, qc]);
+  }, [qc]);
   return null;
 }
 

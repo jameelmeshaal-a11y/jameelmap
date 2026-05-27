@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const navigate = useNavigate();
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,8 @@ function LoginPage() {
       setError(error.message);
       return;
     }
-    navigate({ to: "/" });
+    // تحميل صلب للصفحة بعد الدخول لضمان جاهزية الجلسة وتفادي إلغاء الانتقال من قبل onAuthStateChange
+    window.location.assign("/");
   };
 
   return (
