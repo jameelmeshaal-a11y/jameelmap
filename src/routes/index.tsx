@@ -14,10 +14,13 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle, LogOut, Zap } from "lucide-react";
+import { PageErrorComponent } from "@/components/page-error-boundary";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   beforeLoad: requireBrowserUser,
   component: HomePage,
+  errorComponent: PageErrorComponent,
   head: () => ({
     meta: [
       { title: "جميل ماب — مستخرج بيانات الأماكن" },
@@ -47,7 +50,7 @@ function HomePage() {
   const statusFn = useServerFn(getJobStatus);
   const stopFn = useServerFn(stopScrape);
   const fetchCitiesFn = useServerFn(fetchCitiesForCountry);
-  const stopMut = useMutation({ mutationFn: (id: string) => stopFn({ data: { jobId: id } }) });
+  const stopMut = useMutation({ mutationFn: (id: string) => stopFn({ data: { jobId: id } }), onError: (e: Error) => toast.error(`تعذّر الإيقاف: ${e.message}`) });
 
   const citiesMut = useMutation({
     mutationFn: (vars: { force: boolean }) =>
@@ -70,6 +73,7 @@ function HomePage() {
       return res;
     },
     onSuccess: (res) => setJobId(res.jobId),
+    onError: (e: Error) => toast.error(`فشل بدء المهمة: ${e.message}`),
   });
 
   const status = useQuery({
