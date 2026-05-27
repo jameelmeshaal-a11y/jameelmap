@@ -1,96 +1,66 @@
-# خطة التطوير — جميل ماب (محدّثة)
 
-## 1) إعادة التسمية إلى "جميل ماب"
-- استبدال "عالم جميل" في `index.tsx`, `library.tsx`, `library.$jobId.tsx`, `__root.tsx`، واسم ملف Excel.
+سأنفّذ أربع دفعات بالتوازي بدون انتظار تأكيد.
 
-## 2) اختيار مدن متعددة (Frontend)
-- مكوّن `CityPicker` في `src/components/city-picker.tsx`:
-  - حقل بحث للفلترة الفورية.
-  - أزرار "تحديد الكل" / "إلغاء الكل".
-  - Checkbox لكل مدينة من `COUNTRY_CITIES[country]`.
-  - شارة "محدد: N مدن"، الافتراضي: الكل محدد.
-- منع الإرسال بدون مدينة واحدة على الأقل.
+## 1) ربط DynamicCityPicker في الصفحة الرئيسية
 
-## 3) تمرير المدن المحددة
-- `startScrape` يقبل `cities: string[]` (zod، 1–200).
-- `scrape-engine` يستخدم القائمة الممرَّرة بدل `resolveCities`.
+**`src/routes/index.tsx`** — استبدال `CityPicker` الثابت بالتدفّق الديناميكي الكامل:
+- إزالة استيراد `resolveCities` و `CityPicker`، واستيراد `DynamicCityPicker` + `fetchCitiesForCountry`.
+- ترتيب الحقول: [الدولة] → [النشاط] → زر **📍 جلب المدن** (يظهر بعد كتابة الدولة فقط) → `DynamicCityPicker` (بعد الجلب) → [الحد الأقصى: 500 / 2000 / 5000 / بلا حد] → زر 🚀 ابدأ الجمع (مُعطّل حتى تُحدَّد مدينة واحدة على الأقل).
+- حالة جديدة: `cities: {name,score}[]`, `loadingCities`, `citiesError`, `cachedAt`, `maxResults` (number | null = بلا حد ⇒ 20000).
+- زر "📍 جلب المدن" يستدعي `fetchCitiesForCountry({ data: { country } })` ويعرض شارة "⚡ من الكاش" إذا `cachedAt` غير null، وزرّ "🔄 جلب جديد" يستدعي نفس الـ fn مع `forceRefresh: true`.
+- تمرير `maxResults` إلى `startScrape` (الحقل موجود في `StartInput`).
 
-## 4) شريط تقدم لكل مدينة (يتطلب جدول صغير)
-لا يمكن عرض % دقيقة لكل مدينة بدون تخزين حالتها. أقترح جدول صغير:
+## 2) رفع نتائج Grid Search من ~177 إلى الآلاف
 
+المشكلة: `GRID_SIZE=4` (16 خلية) + كلمة مفتاحية واحدة لا يكفي للمدن الكبيرة. الحل بدون كسر العمارة:
+
+**`src/lib/places-grid.server.ts`**:
+- زيادة `SATURATION` إلى **20** (Places New يرجّع 20/صفحة × 3 صفحات = 60، فالاكتفاء عند 60 يعني تشبّع — لكن استخدام 20 يكتشف التشبع أبكر ويُقسّم).  
+  أبقي على 60 لكن أضيف معيار ثانٍ: قسّم إذا `nextPageToken` ظهر في الصفحة الثالثة.
+- زيادة `maxDepth` من 3 إلى **5** و `MIN_CELL_METERS` إلى **400م**.
+- إضافة `nearbySearchCell(category, cell)` بديلاً يستخدم `places:searchNearby` مع `locationRestriction.circle` (مركز الخلية + نصف قطر = نصف القطر القطري). يُستدعى كموجة ثانية فقط إذا الخلية أعادت ≥30 نتيجة (لتعزيز الكثيفة).
+
+**`src/lib/scrape-engine.server.ts`**:
+- `GRID_SIZE: 4 → 6` (36 خلية افتراضياً، 64 بعد التقسيم التكيّفي).
+- `CELL_CONCURRENCY: 6 → 8`.
+- توسيع `keywords` لأي نشاط غير مسجد: قائمة افتراضية = `[activity, `${activity} shop`, `${activity} store`]` للإنجليزي، أو إضافة الترجمة عبر خريطة بسيطة (cafe ↔ coffee shop ↔ كافيه). يُحتفظ بالنسخ الأصلية مع dedup عبر `place_id`.
+- توثيق العدد المتوقّع في `current_step` (`بحث: 12/216 خلية × كلمة`).
+
+## 3) تبييض شعار "جميل ماب / JAMEEL MAP"
+
+**`src/components/logo.tsx`** — قبول `variant?: "default" | "onDark"`:
+- `onDark`: العنوان والـ subtitle بـ `text-white` و `text-white/80`، الدائرة والـ pin بـ `stroke-white/90` و `fill-white`.
+- `default`: يبقى كما هو (navy/gold) للاستخدام داخل البطاقات.
+
+**`src/routes/index.tsx`**: تمرير `variant="onDark"` للشعار داخل الـ header.  
+أي استخدام آخر للشعار على خلفية فاتحة (مثل بطاقات المكتبة) يبقى افتراضياً.
+
+## 4) استئناف المهام المعلّقة + كسر التعليق
+
+**Server function جديدة** في `src/lib/scraper.functions.ts`:
 ```
-public.scrape_job_cities (
-  id uuid pk, job_id uuid, city text, status text,
-  results_count int default 0, progress int default 0,
-  current_step text default '', error text default '',
-  created_at, updated_at
-)
+export const resumeScrape = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(...{jobId})
+  .handler(...) // يعيد set status='pending' + stopped_at=null ثم void fetch run-job
 ```
-مع GRANT للـ anon/authenticated/service_role وRLS (public read/insert/update مثل بقية الجداول).
 
-- `getJobStatus` يُعيد إضافياً `cities: [{city, status, progress, results_count, current_step}]`.
-- واجهة Job في `index.tsx` تعرض Progress bar لكل مدينة محددة مع عداد نتائجها، بدلاً من progress واحد عام.
-- عداد عام: "تم جمع X نتيجة من Y مدينة (Z قيد التشغيل)".
+**`src/routes/api/public/run-job.$jobId.ts`**:
+- السماح بإعادة التشغيل إذا `status ∈ {pending, running, stopped, failed}` ومرّ أكثر من **3 دقائق** على `updated_at` (تعليق). يُعاد ضبط الحالة إلى `running` ويُكمل من المدن غير المنتهية.
 
-## 5) التغطية الشاملة لكل المتاجر — أسرع وأشمل
-المشكلة: Places API (New) `searchText` يُعيد حداً أقصى **60 نتيجة** لكل استعلام (3 صفحات × 20 عبر `nextPageToken`). للحصول على **كل المتاجر** في مدينة كبيرة (نيويورك، لوس أنجلوس…) نحتاج **استراتيجية متعددة الطبقات**:
+**`src/lib/scrape-engine.server.ts`**:
+- في `runScrapeJob`، تخطّي المدن التي `status='done'` (موجودة في `scrape_job_cities`): قراءة كل المدن مع `status`, ثم `cities = rows.filter(r => r.status !== 'done').map(r => r.city)` للمعالجة، مع احتساب `citiesDone` ابتدائياً من العدد الموجود.
+- إعادة ضبط أي مدينة `status='running'` إلى `pending` عند بدء الـ run (لأنها بقيت معلّقة من تشغيل سابق).
+- تجميع `totalSaved` ابتدائياً من `SELECT count + sum(results_count)` للمدن المنتهية.
 
-### الطبقة A — تقسيم شبكي جغرافي (Grid Tiling) — الأقوى
-1. **Geocode المدينة مرة واحدة** عبر `maps/api/geocode/json` للحصول على `viewport` (BBox).
-2. **تقسيم BBox إلى شبكة خلايا** (مثلاً 4×4 = 16 خلية، أو تكيّفياً حسب مساحة المدينة).
-3. لكل خلية: استدعاء **`places:searchNearby`** بنصف قطر يغطي الخلية + النشاط (`includedTypes` أو `textQuery` للخلية).
-   - بديل أقوى: `searchText` مع `locationBias=circle{center,radius}` لكل خلية + 3 صفحات pagination.
-4. **التقسيم التكيّفي**: إذا أعادت خلية 60 نتيجة (مشبعة) → قسّمها لـ 4 خلايا أصغر تلقائياً وأعد الطلب (recursive subdivide حتى ≤59 نتيجة، بحد أدنى لنصف القطر مثلاً 300م).
-5. dedup الفوري بـ `place_id` بين كل الخلايا.
+**`src/routes/library.tsx`**:
+- زرّ **"▶️ استئناف"** يظهر لأي مهمة `status ∈ {stopped, failed, running}` حيث `updated_at` أقدم من 3 دقائق، يستدعي `resumeScrape` ثم يُحدّث الكاش.
+- شارة "معلّقة" (amber) إذا `running` و آخر تحديث > 3 دقائق.
 
-النتيجة: تغطية ~كاملة لكل المدينة (المساجد، المطاعم، أي نشاط) بدلاً من 60 نتيجة فقط.
+**`src/lib/library.functions.ts`**: تضمين `updated_at` في `listJobs` لحساب التعليق على الكلاينت.
 
-### الطبقة B — تنويع الكلمات المفتاحية
-- للمساجد: نُبقي `MOSQUE_KEYWORDS` (موجودة).
-- لأي نشاط آخر: استخدام `includedTypes` المناسب من Places (مثلاً `restaurant`, `pharmacy`, `mosque`, `hotel`) + `textQuery` بالنشاط المُدخَل بالعربي والإنجليزي.
-- جدول مبسّط للأنشطة الشائعة → `includedType` صحيح (نُنشئ map في `country-cities.ts`).
+## ملخّص الملفات
 
-### الطبقة C — التوازي المكثّف (تسريع)
-- **5 مدن متوازية** (Promise pool).
-- داخل كل مدينة: **8–12 خلية متوازية** في وقت واحد (pool محلي).
-- داخل كل خلية: 3 طلبات pagination تتابعية (إجباري لأن `nextPageToken` يتطلب التتابع + ~2s تأخير حسب توصية Google).
-- **batch insert** لـ `scrape_results` كل 50–100 نتيجة بدلاً من إدراج فردي → تقليل round-trips.
-- **upsert على `place_id`** (مع `onConflict: place_id, job_id`) → dedup تلقائي على مستوى DB.
-
-### إدارة الحدود (Rate limits)
-- Places API (New) حدّ افتراضي ~600 RPM (يمكن رفعه). 5 مدن × 10 خلايا × 3 صفحات = 150 طلب متوازي ذروة — ضمن الحد.
-- إضافة retry exponential backoff على 429/5xx.
-
-### تتبع التقدم لكل مدينة
-- `progress` لكل مدينة = (خلايا منتهية / إجمالي خلايا) %.
-- `current_step` نص قصير: "geocoding"، "scanning cell 7/16"، "enriching emails"، "done".
-- update لـ `scrape_job_cities` بعد كل خلية.
-
-## 6) أعمدة Excel
-- اختصار إلى: **name, city, state, phone, whatsapp, website, email, maps_url** (8 أعمدة).
-
-## 7) مكتبة + تصدير مجمّع
-- زر "تصدير مجمّع" في `/library` → route جديد `/api/public/download-all` يجمع كل النتائج، dedup بـ `place_id` في الذاكرة، يصدّر Excel بنفس 8 أعمدة.
-- إحصائية: "إجمالي السجلات الفريدة عبر كل العمليات: N" عبر server function جديدة.
-
-## ملفات سيتم لمسها
-- **migration**: إنشاء جدول `scrape_job_cities` + GRANTs + RLS.
-- `src/components/city-picker.tsx` — جديد.
-- `src/lib/country-cities.ts` — map للأنشطة → includedTypes.
-- `src/lib/scraper.functions.ts` — schema يقبل `cities`، `getJobStatus` يُعيد per-city.
-- `src/lib/scrape-engine.server.ts` — pool 5 مدن + grid tiling + adaptive subdivide + batch upsert + تحديث `scrape_job_cities`.
-- `src/lib/places-grid.server.ts` — جديد: geocode + grid + adaptive subdivide.
-- `src/routes/index.tsx` — تسمية + CityPicker + عرض per-city progress.
-- `src/routes/api/public/download.$jobId.ts` — 8 أعمدة + تسمية ملف.
-- `src/routes/api/public/download-all.ts` — جديد.
-- `src/lib/library.functions.ts` — `getAggregateStats`.
-- `src/routes/library.tsx`, `library.$jobId.tsx` — زر التصدير المجمّع + التسمية.
-
-## النتيجة المتوقعة
-- **التغطية**: من ~60 نتيجة/مدينة → مئات إلى آلاف (حسب حجم المدينة والنشاط).
-- **السرعة**: 5 مدن متوازية × 10 خلايا متوازية × batch DB → تسريع ~10–20× مقارنة بالحلقة التتابعية الحالية، رغم زيادة عدد الطلبات.
-- **الدقة**: dedup مزدوج (DB upsert + ذاكرة) → صفر مكرر.
-- **التتبع**: شريط تقدم حقيقي لكل مدينة + خطوة حالية.
-
-## ملاحظات تكلفة
-Places API (New) `searchText`/`searchNearby` يُحاسَب لكل طلب. التقسيم الشبكي يضاعف عدد الطلبات (مدينة كبيرة قد تحتاج 30–60 طلب بدل 3). هذا ثمن "كل المتاجر". إن أردت، يمكن إضافة سقف "max cells per city" في الواجهة لاحقاً للتحكم بالتكلفة.
+- يُحرَّر: `src/routes/index.tsx`, `src/components/logo.tsx`, `src/lib/places-grid.server.ts`, `src/lib/scrape-engine.server.ts`, `src/lib/scraper.functions.ts`, `src/routes/api/public/run-job.$jobId.ts`, `src/routes/library.tsx`, `src/lib/library.functions.ts`.
+- لا migrations جديدة (كل الأعمدة المطلوبة موجودة: `stopped_at`, `updated_at`, `selected_cities`, `total_cities`).
+- لا dependencies جديدة.
