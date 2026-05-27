@@ -151,3 +151,32 @@ export const stopScrape = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+export const resumeScrape = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // أعِد ضبط أي مدينة معلّقة (running منذ فترة) إلى pending
+    await supabaseAdmin
+      .from("scrape_job_cities")
+      .update({ status: "pending", current_step: "في انتظار الاستئناف", updated_at: new Date().toISOString() })
+      .eq("job_id", data.jobId)
+      .in("status", ["running", "failed"]);
+    await supabaseAdmin
+      .from("scrape_jobs")
+      .update({
+        status: "pending",
+        stopped_at: null,
+        error_message: "",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.jobId);
+    await supabaseAdmin.from("audit_log").insert({
+      user_id: context.userId,
+      action: "resume_scrape",
+      details: { jobId: data.jobId },
+    });
+    // أطلق التشغيل في الخلفية
+    return { ok: true, jobId: data.jobId };
+  });

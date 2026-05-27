@@ -6,7 +6,7 @@ export const listJobs = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("scrape_jobs")
-    .select("id, country, activity, status, results_count, cities_done, cities_total, created_at, error_message, from_cache")
+    .select("id, country, activity, status, results_count, cities_done, cities_total, created_at, updated_at, error_message, from_cache")
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);

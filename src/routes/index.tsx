@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { startScrape, getJobStatus, stopScrape } from "@/lib/scraper.functions";
-import { resolveCities } from "@/lib/country-cities";
-import { CityPicker } from "@/components/city-picker";
+import { fetchCitiesForCountry } from "@/lib/cities-fetch.functions";
+import { DynamicCityPicker } from "@/components/dynamic-city-picker";
 import { Logo } from "@/components/logo";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle, StopCircle, LogOut } from "lucide-react";
+import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle, LogOut, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -28,33 +28,45 @@ export const Route = createFileRoute("/")({
   }),
 });
 
+const MAX_OPTIONS: Array<{ label: string; value: number }> = [
+  { label: "500", value: 500 },
+  { label: "2000", value: 2000 },
+  { label: "5000", value: 5000 },
+  { label: "بلا حد", value: 20000 },
+];
+
 function HomePage() {
   const [country, setCountry] = useState("");
   const [activity, setActivity] = useState("");
+  const [cities, setCities] = useState<{ name: string; score: number }[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const [citiesError, setCitiesError] = useState<string | null>(null);
+  const [maxResults, setMaxResults] = useState<number>(2000);
   const [jobId, setJobId] = useState<string | null>(null);
 
   const startFn = useServerFn(startScrape);
   const statusFn = useServerFn(getJobStatus);
   const stopFn = useServerFn(stopScrape);
+  const fetchCitiesFn = useServerFn(fetchCitiesForCountry);
   const stopMut = useMutation({ mutationFn: (id: string) => stopFn({ data: { jobId: id } }) });
 
-  // قائمة المدن المتاحة للدولة المُدخلة
-  const availableCities = useMemo(() => {
-    if (!country.trim()) return [] as string[];
-    return resolveCities(country.trim()).cities;
-  }, [country]);
-
-  // عند تغيير الدولة: حدّد الكل افتراضياً (للدول المعروفة فقط)
-  const handleCountryChange = (val: string) => {
-    setCountry(val);
-    const cities = resolveCities(val.trim()).cities;
-    // إن كانت الدولة معروفة (>1 مدينة) — حدّد الكل، وإلا فارغ ليُكتب يدوياً
-    setSelectedCities(cities.length > 1 ? cities : []);
-  };
+  const citiesMut = useMutation({
+    mutationFn: (vars: { force: boolean }) =>
+      fetchCitiesFn({ data: { country: country.trim(), forceRefresh: vars.force } }),
+    onSuccess: (res) => {
+      if (res.error) { setCitiesError(res.error); setCities([]); setSelectedCities([]); setCachedAt(null); return; }
+      setCitiesError(null);
+      setCities(res.cities);
+      setCachedAt(res.cachedAt ?? null);
+      // افتراضياً: حدّد أول 10
+      setSelectedCities(res.cities.slice(0, 10).map((c) => c.name));
+    },
+    onError: (e) => { setCitiesError((e as Error).message); setCities([]); setSelectedCities([]); },
+  });
 
   const startMut = useMutation({
-    mutationFn: async (vars: { country: string; activity: string; cities: string[] }) => {
+    mutationFn: async (vars: { country: string; activity: string; cities: string[]; maxResults: number }) => {
       const res = await startFn({ data: vars });
       void fetch(`/api/public/run-job/${res.jobId}`, { method: "POST" }).catch(() => {});
       return res;
@@ -68,34 +80,30 @@ function HomePage() {
     enabled: !!jobId,
     refetchInterval: (q) => {
       const s = q.state.data?.status;
-      return s === "completed" || s === "failed" ? false : 2500;
+      return s === "completed" || s === "failed" || s === "stopped" ? false : 2500;
     },
   });
 
-  const isRunning = jobId && status.data && status.data.status !== "completed" && status.data.status !== "failed";
+  const isRunning = jobId && status.data && status.data.status !== "completed" && status.data.status !== "failed" && status.data.status !== "stopped";
   const isDone = status.data?.status === "completed";
   const isFailed = status.data?.status === "failed";
 
-  const canStart =
-    country.trim() &&
-    activity.trim() &&
-    (availableCities.length === 0 ? true : selectedCities.length > 0);
+  const handleCountryChange = (val: string) => {
+    setCountry(val);
+    setCities([]); setSelectedCities([]); setCachedAt(null); setCitiesError(null);
+  };
+
+  const canStart = country.trim() && activity.trim() && selectedCities.length > 0 && !isRunning;
 
   return (
     <main className="min-h-screen bg-background">
-      <header
-        className="relative overflow-hidden text-primary-foreground"
-        style={{ background: "var(--gradient-hero)" }}
-      >
+      <header className="relative overflow-hidden text-white" style={{ background: "var(--gradient-hero)" }}>
         <div className="container mx-auto px-6 pt-6 pb-28">
           <div className="flex items-center justify-between gap-3">
-            <Logo size={36} />
+            <Logo size={36} variant="onDark" />
             <div className="flex flex-wrap items-center gap-2">
               <AdminLink />
-              <Link
-                to="/library"
-                className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25"
-              >
+              <Link to="/library" className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition-colors hover:bg-white/25">
                 <FolderOpen className="h-4 w-4" /> المكتبة
               </Link>
               <button
@@ -111,9 +119,9 @@ function HomePage() {
               <Sparkles className="h-4 w-4" />
               <span>منصة استخراج بيانات الأماكن</span>
             </div>
-            <h1 className="mt-5 text-5xl font-bold tracking-tight">جميل ماب</h1>
+            <h1 className="mt-5 text-5xl font-bold tracking-tight text-white">جميل ماب</h1>
             <p className="mx-auto mt-3 max-w-xl text-lg text-white/90">
-              اختر الدولة والمدن والنشاط، نجمع لك كل الأماكن من خرائط Google ونصدّرها كملف Excel جاهز.
+              اختر الدولة والنشاط، اجلب المدن، ثم نجمع لك كل الأماكن من خرائط Google ونصدّرها كملف Excel.
             </p>
           </div>
         </div>
@@ -129,58 +137,76 @@ function HomePage() {
               startMut.mutate({
                 country: country.trim(),
                 activity: activity.trim(),
-                cities: availableCities.length > 0 ? selectedCities : [country.trim()],
+                cities: selectedCities,
+                maxResults,
               });
             }}
             className="space-y-5"
           >
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="country" className="text-sm font-semibold">الدولة</Label>
-                <Input
-                  id="country"
-                  placeholder="مثال: USA، السعودية، مصر، تركيا"
-                  value={country}
-                  onChange={(e) => handleCountryChange(e.target.value)}
-                  disabled={!!isRunning}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="activity" className="text-sm font-semibold">النشاط</Label>
-                <Input
-                  id="activity"
-                  placeholder="مثال: Mosque، مطعم، صيدلية، فندق"
-                  value={activity}
-                  onChange={(e) => setActivity(e.target.value)}
-                  disabled={!!isRunning}
-                  required
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="country" className="text-sm font-semibold">الدولة</Label>
+              <Input id="country" placeholder="USA, السعودية, مصر, تركيا..." value={country}
+                onChange={(e) => handleCountryChange(e.target.value)} disabled={!!isRunning} required />
             </div>
 
-            {availableCities.length > 0 && (
-              <CityPicker
-                cities={availableCities}
+            <div className="space-y-2">
+              <Label htmlFor="activity" className="text-sm font-semibold">النشاط / الكلمة المفتاحية</Label>
+              <Input id="activity" placeholder="coffee, مطعم, صيدلية, فندق..." value={activity}
+                onChange={(e) => setActivity(e.target.value)} disabled={!!isRunning} required />
+            </div>
+
+            {country.trim() && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="secondary" onClick={() => citiesMut.mutate({ force: false })} disabled={citiesMut.isPending || !!isRunning}>
+                  {citiesMut.isPending ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" /> جاري الجلب...</> : <><MapPin className="ml-2 h-4 w-4" /> 📍 جلب المدن</>}
+                </Button>
+                {cachedAt && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                    <Zap className="h-3 w-3" /> من الكاش
+                  </span>
+                )}
+                {cities.length > 0 && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => citiesMut.mutate({ force: true })} disabled={citiesMut.isPending || !!isRunning}>
+                    🔄 جلب جديد
+                  </Button>
+                )}
+                {citiesError && <span className="text-xs text-destructive">{citiesError}</span>}
+              </div>
+            )}
+
+            {(citiesMut.isPending || cities.length > 0) && (
+              <DynamicCityPicker
+                cities={cities}
                 selected={selectedCities}
                 onChange={setSelectedCities}
+                loading={citiesMut.isPending}
                 disabled={!!isRunning}
               />
             )}
 
-            <Button
-              type="submit"
-              disabled={!canStart || !!isRunning || startMut.isPending}
-              className="w-full"
-              size="lg"
-            >
-              {startMut.isPending ? (
-                <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري التهيئة...</>
-              ) : isRunning ? (
-                <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري الجمع...</>
-              ) : (
-                <><Search className="ml-2 h-5 w-5" /> ابدأ الجمع</>
-              )}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">الحد الأقصى للنتائج</Label>
+              <div className="flex flex-wrap gap-2">
+                {MAX_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setMaxResults(opt.value)}
+                    disabled={!!isRunning}
+                    className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                      maxResults === opt.value ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button type="submit" disabled={!canStart || startMut.isPending} className="w-full" size="lg">
+              {startMut.isPending ? <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري التهيئة...</>
+                : isRunning ? <><Loader2 className="ml-2 h-5 w-5 animate-spin" /> جاري الجمع...</>
+                : <><Search className="ml-2 h-5 w-5" /> 🚀 ابدأ الجمع</>}
             </Button>
           </form>
 
@@ -200,50 +226,40 @@ function HomePage() {
                 {status.data.status === "running" && "قيد التشغيل"}
                 {status.data.status === "completed" && "مكتملة ✅"}
                 {status.data.status === "failed" && "فشلت ❌"}
+                {status.data.status === "stopped" && "موقوفة ⏸"}
               </span>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>المدن: {status.data.citiesDone} / {status.data.citiesTotal}</span>
-              <span className="font-semibold text-primary">
-                تم جمع {status.data.resultsCount} نتيجة فريدة
-              </span>
+              <span className="font-semibold text-primary">تم جمع {status.data.resultsCount} نتيجة فريدة</span>
               {status.data.currentCity && !isDone && (
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="h-4 w-4" /> {status.data.currentCity}
-                </span>
+                <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {status.data.currentCity}</span>
+              )}
+              {isRunning && (
+                <Button size="sm" variant="destructive" onClick={() => stopMut.mutate(jobId!)} disabled={stopMut.isPending}>
+                  إيقاف
+                </Button>
               )}
             </div>
 
-            {/* شريط تقدم لكل مدينة */}
             {status.data.cities.length > 0 && (
               <div className="mt-5 max-h-96 space-y-2 overflow-y-auto rounded-md border bg-card/50 p-3">
                 {status.data.cities.map((c) => (
                   <div key={c.city} className="space-y-1">
                     <div className="flex items-center justify-between gap-2 text-sm">
                       <div className="flex min-w-0 items-center gap-2">
-                        {c.status === "done" ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                        ) : c.status === "running" ? (
-                          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                        ) : c.status === "failed" ? (
-                          <XCircle className="h-4 w-4 shrink-0 text-destructive" />
-                        ) : (
-                          <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
+                        {c.status === "done" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                          : c.status === "running" ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                          : c.status === "failed" ? <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                          : <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />}
                         <span className="truncate font-medium">{c.city}</span>
                       </div>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {c.results_count} نتيجة · {c.progress}%
-                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{c.results_count} نتيجة · {c.progress}%</span>
                     </div>
                     <Progress value={c.progress} className="h-1.5" />
-                    {c.current_step && (
-                      <p className="truncate text-xs text-muted-foreground">{c.current_step}</p>
-                    )}
-                    {c.error_message && (
-                      <p className="truncate text-xs text-destructive">{c.error_message}</p>
-                    )}
+                    {c.current_step && <p className="truncate text-xs text-muted-foreground">{c.current_step}</p>}
+                    {c.error_message && <p className="truncate text-xs text-destructive">{c.error_message}</p>}
                   </div>
                 ))}
               </div>
@@ -255,43 +271,11 @@ function HomePage() {
               </p>
             )}
 
-            {isDone && status.data.resultsCount > 0 && (
-              <a
-                href={`/api/public/download/${jobId}`}
-                download
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                <Download className="h-5 w-5" />
-                تحميل ملف Excel ({status.data.resultsCount} نتيجة)
+            {(isDone || status.data.status === "stopped") && status.data.resultsCount > 0 && (
+              <a href={`/api/public/download/${jobId}`} download
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+                <Download className="h-5 w-5" /> تحميل ملف Excel ({status.data.resultsCount} نتيجة)
               </a>
-            )}
-
-            {status.data.preview.length > 0 && (
-              <div className="mt-6 overflow-hidden rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead className="bg-secondary/50">
-                    <tr>
-                      <th className="p-2 text-right font-semibold">الاسم</th>
-                      <th className="p-2 text-right font-semibold">المدينة</th>
-                      <th className="p-2 text-right font-semibold">الهاتف</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {status.data.preview.map((r, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="p-2">{r.name}</td>
-                        <td className="p-2 text-muted-foreground">{r.city}</td>
-                        <td className="p-2 text-muted-foreground" dir="ltr">{r.phone || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {status.data.resultsCount > status.data.preview.length && (
-                  <p className="bg-secondary/30 p-2 text-center text-xs text-muted-foreground">
-                    عرض أحدث {status.data.preview.length} من أصل {status.data.resultsCount} — التحميل يشمل الجميع.
-                  </p>
-                )}
-              </div>
             )}
           </Card>
         )}
