@@ -59,11 +59,12 @@ export async function requireBrowserAdmin() {
   if (!user) return null;
 
   try {
-    const { data: role } = await withTimeout(
-      supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle(),
+    const res = await withTimeout(
+      Promise.resolve(supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle()),
       10_000,
       "user_roles",
     );
+    const role = res.data;
     if (!role || role.role !== "admin") throw redirect({ to: "/" });
     return user;
   } catch (e) {

@@ -24,7 +24,7 @@ export async function safeWrite<T>(label: string, p: PromiseLike<T>): Promise<T 
     const res = await p;
     // supabase يرجع { error } بدل رمي — نتحقق
     if (res && typeof res === "object" && "error" in (res as Record<string, unknown>)) {
-      const err = (res as { error: { message?: string } | null }).error;
+      const err = (res as unknown as { error: { message?: string } | null }).error;
       if (err) {
         console.error(`[safeWrite:${label}]`, err.message ?? err);
         return null;
