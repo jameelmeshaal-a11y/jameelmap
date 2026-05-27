@@ -17,7 +17,7 @@ export const Route = createFileRoute("/bootstrap")({
 });
 
 function BootstrapPage() {
-  const navigate = useNavigate();
+  
   const checkFn = useServerFn(checkAdminExists);
   const bootFn = useServerFn(bootstrapFirstAdmin);
   const [email, setEmail] = useState("ceo@salasah.sa");
