@@ -16,9 +16,9 @@ import {
 } from "@/lib/places-grid.server";
 
 const CITY_CONCURRENCY = 5;
-const CELL_CONCURRENCY = 6;
+const CELL_CONCURRENCY = 8;
 const ENRICH_CONCURRENCY = 4;
-const GRID_SIZE = 4;
+const GRID_SIZE = 6;
 const SAVE_CHUNK = 50;
 const DEFAULT_MAX_RESULTS = 2000;
 const HARD_CAP = 20000;
@@ -302,36 +302,55 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
 
   const { data: cityRows } = await supabaseAdmin
     .from("scrape_job_cities")
-    .select("city")
+    .select("city, status, results_count")
     .eq("job_id", jobId);
 
-  let cities: string[] = (cityRows ?? []).map((r) => r.city as string);
-  if (cities.length === 0) {
-    cities = resolveCities(country).cities;
-    if (cities.length > 0) {
+  let allCityRows = cityRows ?? [];
+  if (allCityRows.length === 0) {
+    const resolved = resolveCities(country).cities;
+    if (resolved.length > 0) {
       await supabaseAdmin
         .from("scrape_job_cities")
-        .insert(cities.map((c) => ({ job_id: jobId, city: c, status: "pending" })));
+        .insert(resolved.map((c) => ({ job_id: jobId, city: c, status: "pending" })));
+      allCityRows = resolved.map((c) => ({ city: c, status: "pending", results_count: 0 }));
     }
   } else {
-    for (const c of cities) await ensureCityRow(jobId, c);
+    for (const r of allCityRows) await ensureCityRow(jobId, r.city as string);
+  }
+
+  // استئناف: تخطّى المدن المنتهية، أعد فتح المعلّقة
+  const doneRows = allCityRows.filter((r) => r.status === "done");
+  const pendingRows = allCityRows.filter((r) => r.status !== "done");
+  const cities: string[] = pendingRows.map((r) => r.city as string);
+  const initialSaved = doneRows.reduce((s, r) => s + ((r.results_count as number) ?? 0), 0);
+  const initialDone = doneRows.length;
+
+  // أعِد ضبط أي مدينة running/failed إلى pending
+  if (pendingRows.some((r) => r.status === "running" || r.status === "failed")) {
+    await supabaseAdmin
+      .from("scrape_job_cities")
+      .update({ status: "pending", current_step: "إعادة المحاولة", progress: 0, error_message: "" })
+      .eq("job_id", jobId)
+      .in("status", ["running", "failed"]);
   }
 
   const isMosque = isMosqueActivity(activity);
-  const keywords = isMosque ? MOSQUE_KEYWORDS.slice(0, 4) : [activity];
+  const keywords = isMosque
+    ? MOSQUE_KEYWORDS.slice(0, 4)
+    : expandKeywords(activity);
 
   await supabaseAdmin.from("scrape_jobs").update({
     status: "running",
-    cities_total: cities.length,
-    cities_done: 0,
-    results_count: 0,
+    cities_total: allCityRows.length,
+    cities_done: initialDone,
+    results_count: initialSaved,
     updated_at: new Date().toISOString(),
   }).eq("id", jobId);
 
   const globalSeen = new Set<string>();
   const globalDedupKeys = new Set<string>();
-  let totalSaved = 0;
-  let citiesDone = 0;
+  let totalSaved = initialSaved;
+  let citiesDone = initialDone;
   let citiesFailed = 0;
   let citiesFromCache = 0;
   let lastError = "";
