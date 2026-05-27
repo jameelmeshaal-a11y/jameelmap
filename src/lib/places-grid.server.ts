@@ -228,14 +228,14 @@ async function searchCellAllPages(textQuery: string, cell: Cell): Promise<RawPla
 }
 
 // تقسيم تكيّفي: إذا الخلية أعادت 60 نتيجة (مشبعة) وقطرها > minMeters → قسّمها
-const SATURATION = 60;
-const MIN_CELL_METERS = 800;
+const SATURATION = 55;
+const MIN_CELL_METERS = 400;
 
 export async function searchCellAdaptive(
   textQuery: string,
   cell: Cell,
   depth = 0,
-  maxDepth = 3,
+  maxDepth = 5,
 ): Promise<RawPlace[]> {
   const results = await searchCellAllPages(textQuery, cell);
   if (results.length >= SATURATION && depth < maxDepth && cellDiagonalMeters(cell) > MIN_CELL_METERS) {
