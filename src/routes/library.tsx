@@ -3,12 +3,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { listJobs, getAggregateStats, deleteEmptyJobs, deleteJob } from "@/lib/library.functions";
-import { stopScrape } from "@/lib/scraper.functions";
+import { stopScrape, resumeScrape } from "@/lib/scraper.functions";
 import { scrapeJobEmails } from "@/lib/email-scraper.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut, Mail, Zap } from "lucide-react";
+import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut, Mail, Zap, Play, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
   beforeLoad: async () => {
@@ -29,6 +29,7 @@ function LibraryPage() {
   const fn = useServerFn(listJobs);
   const statsFn = useServerFn(getAggregateStats);
   const stopFn = useServerFn(stopScrape);
+  const resumeFn = useServerFn(resumeScrape);
   const delEmptyFn = useServerFn(deleteEmptyJobs);
   const delJobFn = useServerFn(deleteJob);
   const scrapeEmailsFn = useServerFn(scrapeJobEmails);
@@ -57,6 +58,14 @@ function LibraryPage() {
   });
   const emailMut = useMutation({
     mutationFn: (id: string) => scrapeEmailsFn({ data: { jobId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+  const resumeMut = useMutation({
+    mutationFn: async (id: string) => {
+      await resumeFn({ data: { jobId: id } });
+      void fetch(`/api/public/run-job/${id}`, { method: "POST" }).catch(() => {});
+      return id;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
   });
   const logout = async () => { await supabase.auth.signOut(); window.location.href = "/login"; };
