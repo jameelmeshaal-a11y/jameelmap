@@ -112,10 +112,26 @@ async function processCity(
   globalSeen: Set<string>,
   remainingBudget: () => number,
 ): Promise<ProcessCityResult> {
-  // 1) كاش — TTL 3 أيام
+  // أداة بناء صف موحّدة
+  const toRow = (r: RawPlace) => ({
+    job_id: jobId, place_id: r.place_id, name: r.name, address: r.address,
+    city, state: r.state, country, phone: r.phone, whatsapp: r.whatsapp ?? "",
+    website: r.website, category: r.category, maps_url: r.maps_url, email: "",
+  });
+
+  // حفظ دفعة بأمان مع تحديث العدّاد
+  let saved = 0;
+  const flushBuffer = async (buf: RawPlace[]) => {
+    if (buf.length === 0) return;
+    const rows = buf.map(toRow);
+    const n = await saveBatch(jobId, rows);
+    saved += n;
+  };
+
+  // 1) كاش — TTL 3 أيام (حفظ تدريجي بدفعات SAVE_CHUNK)
   const cached = await readSearchCache<RawPlace[]>(country, activity, city);
   if (cached && Array.isArray(cached) && cached.length > 0) {
-    await updateCity(jobId, city, { status: "running", current_step: "⚡ من الكاش", progress: 50 });
+    await updateCity(jobId, city, { status: "running", current_step: "⚡ من الكاش — تحميل...", progress: 10 });
     const fresh: RawPlace[] = [];
     for (const r of cached) {
       if (remainingBudget() <= fresh.length) break;
@@ -123,17 +139,25 @@ async function processCity(
       globalSeen.add(r.place_id);
       fresh.push(r);
     }
-    const rows = fresh.map((r) => ({
-      job_id: jobId, place_id: r.place_id, name: r.name, address: r.address,
-      city, state: r.state, country, phone: r.phone, whatsapp: r.whatsapp ?? "",
-      website: r.website, category: r.category, maps_url: r.maps_url, email: "",
-    }));
-    const saved = await saveBatch(jobId, rows);
+    for (let i = 0; i < fresh.length; i += SAVE_CHUNK) {
+      if (await isJobStopped(jobId)) {
+        await updateCity(jobId, city, { status: "failed", current_step: "تم الإيقاف", error_message: "تم إيقاف المهمة", progress: 100, results_count: saved });
+        return { city, saved, error: "stopped" };
+      }
+      const chunk = fresh.slice(i, i + SAVE_CHUNK);
+      await flushBuffer(chunk);
+      const progress = Math.min(99, 10 + Math.round(((i + chunk.length) / Math.max(1, fresh.length)) * 88));
+      await updateCity(jobId, city, {
+        progress,
+        results_count: saved,
+        current_step: `⚡ من الكاش · ${saved}/${fresh.length}`,
+      });
+    }
     await updateCity(jobId, city, { status: "done", progress: 100, results_count: saved, current_step: `⚡ من الكاش · ${saved} نتيجة` });
     return { city, saved, fromCache: true };
   }
 
-  await updateCity(jobId, city, { status: "running", current_step: "جاري تحديد الإحداثيات", progress: 2 });
+  await updateCity(jobId, city, { status: "running", current_step: "تحديد حدود المدينة...", progress: 2 });
 
   if (await isJobStopped(jobId)) {
     await updateCity(jobId, city, { status: "failed", current_step: "تم الإيقاف", error_message: "تم إيقاف المهمة", progress: 100 });
@@ -152,10 +176,12 @@ async function processCity(
   const cells = tileViewport(geo.viewport, GRID_SIZE);
   const totalUnits = cells.length * Math.max(1, keywords.length);
   let doneUnits = 0;
-  const localResults: RawPlace[] = [];
   const localSeen = new Set<string>();
+  const cachedAll: RawPlace[] = []; // لكتابة الكاش في النهاية فقط
+  let pendingBuf: RawPlace[] = [];
+  let flushing = false;
 
-  await updateCity(jobId, city, { current_step: `0/${cells.length} خلية`, progress: 5 });
+  await updateCity(jobId, city, { current_step: `تجهيز شبكة ${cells.length} خلية × ${keywords.length} كلمة`, progress: 5 });
 
   type Task = { kw: string; cellIdx: number };
   const tasks: Task[] = [];
@@ -164,86 +190,65 @@ async function processCity(
   }
 
   let stoppedFlag = false;
+
+  // قفل بسيط لمنع تداخل flush
+  const tryFlush = async (force = false) => {
+    if (flushing) return;
+    if (!force && pendingBuf.length < SAVE_CHUNK) return;
+    flushing = true;
+    try {
+      while (pendingBuf.length >= SAVE_CHUNK || (force && pendingBuf.length > 0)) {
+        const chunk = pendingBuf.splice(0, SAVE_CHUNK);
+        await flushBuffer(chunk);
+      }
+    } finally {
+      flushing = false;
+    }
+  };
+
   await pool(tasks, CELL_CONCURRENCY, async (t) => {
     if (stoppedFlag) return;
     if (remainingBudget() <= 0) return;
     try {
       const results = await searchCellAdaptive(`${t.kw} in ${city}`, cells[t.cellIdx]);
       for (const r of results) {
-        if (!localSeen.has(r.place_id)) {
-          localSeen.add(r.place_id);
-          localResults.push(r);
-        }
+        if (localSeen.has(r.place_id)) continue;
+        localSeen.add(r.place_id);
+        if (globalSeen.has(r.place_id)) continue;
+        globalSeen.add(r.place_id);
+        pendingBuf.push(r);
+        cachedAll.push(r);
+        if (remainingBudget() <= 0) { stoppedFlag = true; break; }
       }
+      // حفظ تدريجي
+      await tryFlush(false);
     } catch (e) {
       console.error(`[${city}] cell ${t.cellIdx} kw="${t.kw}" failed:`, e);
     } finally {
       doneUnits++;
       if (doneUnits % 4 === 0 || doneUnits === totalUnits) {
-        // فحص دوري للإيقاف
         if (doneUnits % 8 === 0 && await isJobStopped(jobId)) stoppedFlag = true;
-        const progress = Math.min(70, 5 + Math.round((doneUnits / totalUnits) * 60));
+        const progress = Math.min(95, 5 + Math.round((doneUnits / totalUnits) * 90));
         await updateCity(jobId, city, {
           progress,
-          current_step: `بحث: ${doneUnits}/${totalUnits} خلية · ${localResults.length} نتيجة`,
-          results_count: localResults.length,
+          current_step: `بحث ${doneUnits}/${totalUnits} خلية · حُفظ ${saved}`,
+          results_count: saved,
         });
       }
     }
   });
 
-  if (stoppedFlag) {
-    await updateCity(jobId, city, { status: "failed", current_step: "تم الإيقاف", error_message: "تم إيقاف المهمة", progress: 100 });
-    return { city, saved: 0, error: "stopped" };
-  }
+  // flush متبقي قبل الإنهاء
+  await tryFlush(true);
 
-  // Dedup عالمياً — place_id فقط (المفتاح الفريد المضمون من Google)
-  const fresh: RawPlace[] = [];
-  for (const r of localResults) {
-    if (remainingBudget() <= fresh.length) break;
-    if (globalSeen.has(r.place_id)) continue;
-    globalSeen.add(r.place_id);
-    fresh.push(r);
-  }
-
-  // احفظ الصفوف بدُفعات 50 — بدون إثراء تلقائي (الإيميلات عبر زر منفصل)
-  await updateCity(jobId, city, {
-    progress: 80,
-    current_step: `حفظ ${fresh.length} سجل...`,
-  });
-
-  let saved = 0;
-  for (let i = 0; i < fresh.length; i += SAVE_CHUNK) {
-    if (await isJobStopped(jobId)) {
-      await updateCity(jobId, city, { status: "failed", current_step: "تم الإيقاف", error_message: "تم إيقاف المهمة", progress: 100 });
-      return { city, saved, error: "stopped" };
-    }
-    const chunk = fresh.slice(i, i + SAVE_CHUNK).map((r) => ({
-      job_id: jobId,
-      place_id: r.place_id,
-      name: r.name,
-      address: r.address,
-      city,
-      state: r.state,
-      country,
-      phone: r.phone,
-      whatsapp: r.whatsapp ?? "",
-      website: r.website,
-      category: r.category,
-      maps_url: r.maps_url,
-      email: "",
-    }));
-    saved += await saveBatch(jobId, chunk);
-    await updateCity(jobId, city, {
-      progress: 80 + Math.round(((i + chunk.length) / Math.max(1, fresh.length)) * 18),
-      current_step: `حفظ ${Math.min(i + SAVE_CHUNK, fresh.length)}/${fresh.length}`,
-      results_count: saved,
-    });
+  if (stoppedFlag && await isJobStopped(jobId)) {
+    await updateCity(jobId, city, { status: "failed", current_step: `تم الإيقاف · حُفظ ${saved}`, error_message: "تم إيقاف المهمة", progress: 100, results_count: saved });
+    return { city, saved, error: "stopped" };
   }
 
   // اكتب الكاش (3 أيام) بعد الاكتمال
-  if (fresh.length > 0) {
-    try { await writeSearchCache(country, activity, city, fresh); } catch { /* ignore */ }
+  if (cachedAll.length > 0) {
+    try { await writeSearchCache(country, activity, city, cachedAll); } catch { /* ignore */ }
   }
 
   await updateCity(jobId, city, {
