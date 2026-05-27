@@ -1,66 +1,92 @@
+# تشخيص صريح + الخطة الكاملة
 
-سأنفّذ أربع دفعات بالتوازي بدون انتظار تأكيد.
+## أولاً: هل Grid Search مُطبَّق فعلاً؟ — جواب صريح
 
-## 1) ربط DynamicCityPicker في الصفحة الرئيسية
+**نعم، مُطبَّق فعلاً** في `src/lib/places-grid.server.ts` + `src/lib/scrape-engine.server.ts`:
 
-**`src/routes/index.tsx`** — استبدال `CityPicker` الثابت بالتدفّق الديناميكي الكامل:
-- إزالة استيراد `resolveCities` و `CityPicker`، واستيراد `DynamicCityPicker` + `fetchCitiesForCountry`.
-- ترتيب الحقول: [الدولة] → [النشاط] → زر **📍 جلب المدن** (يظهر بعد كتابة الدولة فقط) → `DynamicCityPicker` (بعد الجلب) → [الحد الأقصى: 500 / 2000 / 5000 / بلا حد] → زر 🚀 ابدأ الجمع (مُعطّل حتى تُحدَّد مدينة واحدة على الأقل).
-- حالة جديدة: `cities: {name,score}[]`, `loadingCities`, `citiesError`, `cachedAt`, `maxResults` (number | null = بلا حد ⇒ 20000).
-- زر "📍 جلب المدن" يستدعي `fetchCitiesForCountry({ data: { country } })` ويعرض شارة "⚡ من الكاش" إذا `cachedAt` غير null، وزرّ "🔄 جلب جديد" يستدعي نفس الـ fn مع `forceRefresh: true`.
-- تمرير `maxResults` إلى `startScrape` (الحقل موجود في `StartInput`).
+| المتطلَّب الذي طلبتَه | الحالة في الكود | الدليل |
+|---|---|---|
+| تقسيم المدينة إلى شبكة | ✅ مُطبَّق | `tileViewport(viewport, GRID_SIZE=6)` → 36 مربعاً افتراضياً |
+| بحث في كل مربع بإحداثيات مختلفة | ✅ مُطبَّق | كل مربع له `low/high` (rectangle) مختلف يُمرَّر في `locationRestriction.rectangle` |
+| تجميع النتائج وإزالة المكررات بـ `place_id` | ✅ مُطبَّق | `localSeen: Set<string>` بـ `place_id` (السطر 173) |
+| تنفيذ متزامن لتجاوز سياسة جوجل | ✅ مُطبَّق | `pool(tasks, CELL_CONCURRENCY=8)` يشتغل 8 مربعات بالتوازي |
+| تقسيم تكيّفي عند التشبع | ✅ مُطبَّق (تحسين إضافي) | `searchCellAdaptive` يقسم المربع إلى 4 إذا تجاوز 55 نتيجة، بعمق حتى 5 → حتى 1024 خلية فرعية للمدن الكثيفة |
+| توسيع الكلمات المفتاحية | ✅ مُطبَّق | `expandKeywords()` يضيف صيغ متعددة (cafe/coffee/كافيه...) كلها تمر بنفس الـGrid |
 
-## 2) رفع نتائج Grid Search من ~177 إلى الآلاف
+**الدليل القاطع من قاعدة البيانات الحقيقية الآن:**
 
-المشكلة: `GRID_SIZE=4` (16 خلية) + كلمة مفتاحية واحدة لا يكفي للمدن الكبيرة. الحل بدون كسر العمارة:
+| المهمة | في DB | في Excel |
+|---|---|---|
+| Cofe / New York | **9412 سجل فريد** ✅ | 1100 ❌ |
+| coffee / USA | **4027 سجل فريد** ✅ | — |
 
-**`src/lib/places-grid.server.ts`**:
-- زيادة `SATURATION` إلى **20** (Places New يرجّع 20/صفحة × 3 صفحات = 60، فالاكتفاء عند 60 يعني تشبّع — لكن استخدام 20 يكتشف التشبع أبكر ويُقسّم).  
-  أبقي على 60 لكن أضيف معيار ثانٍ: قسّم إذا `nextPageToken` ظهر في الصفحة الثالثة.
-- زيادة `maxDepth` من 3 إلى **5** و `MIN_CELL_METERS` إلى **400م**.
-- إضافة `nearbySearchCell(category, cell)` بديلاً يستخدم `places:searchNearby` مع `locationRestriction.circle` (مركز الخلية + نصف قطر = نصف القطر القطري). يُستدعى كموجة ثانية فقط إذا الخلية أعادت ≥30 نتيجة (لتعزيز الكثيفة).
+→ Grid Search **يعمل وأخرج 9412 سجلاً فعلاً** لنيويورك. المشكلة ليست في الجمع. المشكلة في 3 أماكن مختلفة.
 
-**`src/lib/scrape-engine.server.ts`**:
-- `GRID_SIZE: 4 → 6` (36 خلية افتراضياً، 64 بعد التقسيم التكيّفي).
-- `CELL_CONCURRENCY: 6 → 8`.
-- توسيع `keywords` لأي نشاط غير مسجد: قائمة افتراضية = `[activity, `${activity} shop`, `${activity} store`]` للإنجليزي، أو إضافة الترجمة عبر خريطة بسيطة (cafe ↔ coffee shop ↔ كافيه). يُحتفظ بالنسخ الأصلية مع dedup عبر `place_id`.
-- توثيق العدد المتوقّع في `current_step` (`بحث: 12/216 خلية × كلمة`).
+ملاحظة دقيقة: التطبيق يستخدم `places:searchText` مع `locationRestriction.rectangle` بدل `searchNearby` مع `circle`. الاثنان متكافئان لأن كليهما يحصر النتائج جغرافياً ويعطي حتى 60/استعلام. الفرق فقط في شكل المنطقة (مستطيل بدل دائرة) — وهذا أفضل لتغطية الشبكة بدون تداخل.
 
-## 3) تبييض شعار "جميل ماب / JAMEEL MAP"
+---
 
-**`src/components/logo.tsx`** — قبول `variant?: "default" | "onDark"`:
-- `onDark`: العنوان والـ subtitle بـ `text-white` و `text-white/80`، الدائرة والـ pin بـ `stroke-white/90` و `fill-white`.
-- `default`: يبقى كما هو (navy/gold) للاستخدام داخل البطاقات.
+## ثانياً: المشاكل الحقيقية الثلاث
 
-**`src/routes/index.tsx`**: تمرير `variant="onDark"` للشعار داخل الـ header.  
-أي استخدام آخر للشعار على خلفية فاتحة (مثل بطاقات المكتبة) يبقى افتراضياً.
-
-## 4) استئناف المهام المعلّقة + كسر التعليق
-
-**Server function جديدة** في `src/lib/scraper.functions.ts`:
+### 1) Excel يُظهر 1100 من أصل 9412
+**السبب:** `src/routes/api/public/download.$jobId.ts` يستعلم بدون pagination:
+```ts
+.from("scrape_results").select(...).eq("job_id", jobId).order("city")
 ```
-export const resumeScrape = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(...{jobId})
-  .handler(...) // يعيد set status='pending' + stopped_at=null ثم void fetch run-job
-```
+Supabase يحدّ كل استعلام بـ **1000 صف افتراضياً**. الإكسل يأخذ 1000 + بقايا الترتيب.
+**ملف `download-all.ts` يقسّم بـ `.range()` ويعمل صح** — التنزيل الفردي فقط معطوب.
 
-**`src/routes/api/public/run-job.$jobId.ts`**:
-- السماح بإعادة التشغيل إذا `status ∈ {pending, running, stopped, failed}` ومرّ أكثر من **3 دقائق** على `updated_at` (تعليق). يُعاد ضبط الحالة إلى `running` ويُكمل من المدن غير المنتهية.
+### 2) العداد يقفز 16k ثم ينزل إلى 400
+**السبب:** السطور 201-213 في `scrape-engine.server.ts` تطبّق `globalDedupKeys` بالاسم + الهاتف بعد الجمع. هذا يحذف 6000+ سجل صحيح (المتاجر الكبيرة لها فروع بنفس الاسم في أحياء مختلفة، ودكاكين بنفس الهاتف عبر التطبيقات). والـ`place_id` كافٍ لوحده — هو المفتاح الفريد المضمون من جوجل.
 
-**`src/lib/scrape-engine.server.ts`**:
-- في `runScrapeJob`، تخطّي المدن التي `status='done'` (موجودة في `scrape_job_cities`): قراءة كل المدن مع `status`, ثم `cities = rows.filter(r => r.status !== 'done').map(r => r.city)` للمعالجة، مع احتساب `citiesDone` ابتدائياً من العدد الموجود.
-- إعادة ضبط أي مدينة `status='running'` إلى `pending` عند بدء الـ run (لأنها بقيت معلّقة من تشغيل سابق).
-- تجميع `totalSaved` ابتدائياً من `SELECT count + sum(results_count)` للمدن المنتهية.
+### 3) المهمة معلّقة 45 دقيقة عند 9k
+**السبب:** بعد حفظ 9412 سجلاً، يدخل بلوك الإثراء (السطور 250-289):
+- ~5000 موقع لها website
+- كل موقع: fetch للصفحة الرئيسية + `/contact` بـ timeout 7s
+- concurrency = 4
+- الزمن المتوقع: `5000 × 14s / 4 = 17,500 ثانية ≈ 290 دقيقة`
+- Cloudflare Worker له حد CPU/wall-time → يُقتل قبل ما يخلص
 
-**`src/routes/library.tsx`**:
-- زرّ **"▶️ استئناف"** يظهر لأي مهمة `status ∈ {stopped, failed, running}` حيث `updated_at` أقدم من 3 دقائق، يستدعي `resumeScrape` ثم يُحدّث الكاش.
-- شارة "معلّقة" (amber) إذا `running` و آخر تحديث > 3 دقائق.
+وأنت أصلاً عندك زر منفصل **"📧 جلب الإيميلات"** في المكتبة (email-scraper). فلا داعي للإثراء التلقائي.
 
-**`src/lib/library.functions.ts`**: تضمين `updated_at` في `listJobs` لحساب التعليق على الكلاينت.
+---
 
-## ملخّص الملفات
+## ثالثاً: ما الذي سأطبّقه — صراحةً
 
-- يُحرَّر: `src/routes/index.tsx`, `src/components/logo.tsx`, `src/lib/places-grid.server.ts`, `src/lib/scrape-engine.server.ts`, `src/lib/scraper.functions.ts`, `src/routes/api/public/run-job.$jobId.ts`, `src/routes/library.tsx`, `src/lib/library.functions.ts`.
-- لا migrations جديدة (كل الأعمدة المطلوبة موجودة: `stopped_at`, `updated_at`, `selected_cities`, `total_cities`).
-- لا dependencies جديدة.
+### تعديل 1: `src/routes/api/public/download.$jobId.ts`
+استبدال الاستعلام الواحد بحلقة `.range(from, from+999)` تكرّر حتى نفاد البيانات (نفس نمط `download-all.ts` السطور 25-39). ضمان حد أمان 50,000 صف.
+
+### تعديل 2: `src/lib/scrape-engine.server.ts`
+- **حذف `globalDedupKeys`** (السطور 201-213): الاعتماد على `place_id` فقط عبر `globalSeen`.
+- **حذف بلوك الإثراء بالكامل** (السطور 250-289): `toEnrich`, `runInBatches`, `enrichFromWebsite`, `email_scraped_at` patch.
+- **حذف الاستيرادات الزائدة:** `enrichFromWebsite`, `runInBatches`, `ENRICH_CONCURRENCY`.
+- بعد الحفظ مباشرة: `progress → 100` و `status = done`.
+- الإيميلات تبقى للزر المنفصل "📧 جلب الإيميلات".
+
+### تعديل 3: **لا تغييرات على Grid Search**
+لأنه يعمل بشكل صحيح. سأترك:
+- `GRID_SIZE = 6` ✅
+- `CELL_CONCURRENCY = 8` ✅
+- `SATURATION = 55`, `maxDepth = 5`, `MIN_CELL_METERS = 400` ✅
+- التوسيع التكيّفي عند التشبع ✅
+- `expandKeywords` ✅
+
+---
+
+## النتيجة المتوقعة
+
+| القياس | قبل | بعد |
+|---|---|---|
+| Excel لمهمة 9412 | 1100 ❌ | **9412** ✅ |
+| العداد أثناء البحث | يتذبذب 16k→400→9k | **مستقر يتصاعد** |
+| زمن مهمة نيويورك | 45+ دقيقة (يعلّق) | **3–5 دقائق** |
+| الإيميلات | تلقائي (يكسر المهمة) | زر منفصل (موجود مسبقاً) |
+| Grid Search | يعمل (9412) | يعمل (9412) — بلا تغيير |
+
+---
+
+## ملفات ستُعدَّل
+- `src/routes/api/public/download.$jobId.ts` — إضافة pagination
+- `src/lib/scrape-engine.server.ts` — حذف Dedup المفرط + حذف الإثراء التلقائي
+
+**لا migrations · لا dependencies · لا تغيير في Grid Search.**
