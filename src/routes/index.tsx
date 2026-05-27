@@ -241,6 +241,11 @@ function HomePage() {
                   إيقاف
                 </Button>
               )}
+              {(status.data.status === "stopped" || status.data.status === "failed") && (
+                <Button size="sm" onClick={() => { void fetch(`/api/public/run-job/${jobId}`, { method: "POST" }).catch(() => {}); status.refetch(); }}>
+                  استئناف
+                </Button>
+              )}
             </div>
 
             {status.data.cities.length > 0 && (
