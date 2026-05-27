@@ -332,7 +332,24 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
     updated_at: new Date().toISOString(),
   }).eq("id", jobId);
 
+  // حمّل place_ids المحفوظة بالفعل للوظيفة لتفادي إعادة معالجتها (استئناف)
   const globalSeen = new Set<string>();
+  {
+    const PAGE = 1000;
+    for (let from = 0; from < 200_000; from += PAGE) {
+      const { data: existing } = await supabaseAdmin
+        .from("scrape_results")
+        .select("place_id")
+        .eq("job_id", jobId)
+        .range(from, from + PAGE - 1);
+      if (!existing || existing.length === 0) break;
+      for (const r of existing) {
+        const pid = (r as { place_id?: string }).place_id;
+        if (pid) globalSeen.add(pid);
+      }
+      if (existing.length < PAGE) break;
+    }
+  }
   // Dedup عبر place_id فقط (المفتاح الفريد المضمون)
   let totalSaved = initialSaved;
   let citiesDone = initialDone;
