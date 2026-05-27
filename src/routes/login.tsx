@@ -30,7 +30,8 @@ function LoginPage() {
       setError(error.message);
       return;
     }
-    navigate({ to: "/" });
+    // تحميل صلب للصفحة بعد الدخول لضمان جاهزية الجلسة وتفادي إلغاء الانتقال من قبل onAuthStateChange
+    window.location.assign("/");
   };
 
   return (
