@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -7,6 +7,7 @@ import { fetchCitiesForCountry } from "@/lib/cities-fetch.functions";
 import { DynamicCityPicker } from "@/components/dynamic-city-picker";
 import { Logo } from "@/components/logo";
 import { supabase } from "@/integrations/supabase/client";
+import { requireBrowserUser } from "@/lib/auth-guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,10 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Download, FolderOpen, Loader2, MapPin, Search, Sparkles, CheckCircle2, Circle, XCircle, LogOut, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/")({
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/login" });
-  },
+  beforeLoad: requireBrowserUser,
   component: HomePage,
   head: () => ({
     meta: [

@@ -1,8 +1,9 @@
-import { createFileRoute, redirect, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { requireBrowserAdmin } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,12 +20,7 @@ import {
 } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
-    const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", user.id).maybeSingle();
-    if (!role || role.role !== "admin") throw redirect({ to: "/" });
-  },
+  beforeLoad: requireBrowserAdmin,
   component: AdminPage,
   head: () => ({ meta: [{ title: "الإدارة — جميل ماب" }] }),
 });

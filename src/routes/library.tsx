@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -6,15 +6,13 @@ import { listJobs, getAggregateStats, deleteEmptyJobs, deleteJob } from "@/lib/l
 import { stopScrape, resumeScrape } from "@/lib/scraper.functions";
 import { scrapeJobEmails } from "@/lib/email-scraper.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { requireBrowserUser } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut, Mail, Zap, Play, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/library")({
-  beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/login" });
-  },
+  beforeLoad: requireBrowserUser,
   component: LibraryPage,
   head: () => ({
     meta: [
