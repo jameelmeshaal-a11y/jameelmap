@@ -22,11 +22,26 @@ export const Route = createFileRoute("/api/public/download/$jobId")({
           if (jobErr) return new Response(`DB error: ${jobErr.message}`, { status: 500 });
           if (!job) return new Response("Job not found", { status: 404 });
 
-          const { data: rows } = await supabaseAdmin
-            .from("scrape_results")
-            .select("name, city, state, country, phone, email, website, maps_url")
-            .eq("job_id", jobId)
-            .order("city", { ascending: true });
+          // Pagination — Supabase يحدّ كل استعلام بـ 1000 صف افتراضياً
+          const PAGE = 1000;
+          const HARD_CAP = 50000;
+          const rows: Array<{
+            name: string | null; city: string | null; state: string | null;
+            country: string | null; phone: string | null; email: string | null;
+            website: string | null; maps_url: string | null;
+          }> = [];
+          for (let from = 0; from < HARD_CAP; from += PAGE) {
+            const { data: page, error: pageErr } = await supabaseAdmin
+              .from("scrape_results")
+              .select("name, city, state, country, phone, email, website, maps_url")
+              .eq("job_id", jobId)
+              .order("city", { ascending: true })
+              .range(from, from + PAGE - 1);
+            if (pageErr) return new Response(`DB error: ${pageErr.message}`, { status: 500 });
+            if (!page || page.length === 0) break;
+            rows.push(...page);
+            if (page.length < PAGE) break;
+          }
 
           const headers = [
             "الاسم", "المدينة", "الولاية/المنطقة", "الدولة",
@@ -34,7 +49,7 @@ export const Route = createFileRoute("/api/public/download/$jobId")({
           ];
 
           const data: (string | number)[][] = [headers];
-          for (const r of rows ?? []) {
+          for (const r of rows) {
             data.push([
               r.name ?? "", r.city ?? "", r.state ?? "", r.country ?? (job.country ?? ""),
               r.phone ?? "", r.email ?? "", r.website ?? "", r.maps_url ?? "",
