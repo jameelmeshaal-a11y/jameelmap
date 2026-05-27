@@ -1,6 +1,7 @@
 // Server functions لإدارة مكتبة الوظائف السابقة
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { MAX_DB_ROWS, safeWrite } from "@/lib/safe-query";
 
 export const listJobs = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -34,7 +35,7 @@ export const getAggregateStats = createServerFn({ method: "GET" }).handler(async
     }
     if (data.length < PAGE) break;
     from += PAGE;
-    if (from > 50_000) break;
+    if (from > MAX_DB_ROWS) break;
   }
   return { total, uniquePlaces: seen.size };
 });
