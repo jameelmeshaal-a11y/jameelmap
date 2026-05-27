@@ -10,10 +10,13 @@ import { requireBrowserUser } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCircle, LogOut, Mail, Zap, Play, AlertTriangle } from "lucide-react";
+import { PageErrorComponent, SectionErrorBoundary } from "@/components/page-error-boundary";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/library")({
   beforeLoad: requireBrowserUser,
   component: LibraryPage,
+  errorComponent: PageErrorComponent,
   head: () => ({
     meta: [
       { title: "مكتبة النتائج — جميل ماب" },
@@ -52,18 +55,22 @@ function LibraryPage() {
   const stopMut = useMutation({
     mutationFn: (id: string) => stopFn({ data: { jobId: id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onError: (e: Error) => toast.error(`تعذّر الإيقاف: ${e.message}`),
   });
   const delEmptyMut = useMutation({
     mutationFn: () => delEmptyFn(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onError: (e: Error) => toast.error(`تعذّر الحذف: ${e.message}`),
   });
   const delJobMut = useMutation({
     mutationFn: (id: string) => delJobFn({ data: { jobId: id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onError: (e: Error) => toast.error(`تعذّر الحذف: ${e.message}`),
   });
   const emailMut = useMutation({
     mutationFn: (id: string) => scrapeEmailsFn({ data: { jobId: id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onError: (e: Error) => toast.error(`تعذّر جلب الإيميلات: ${e.message}`),
   });
   const resumeMut = useMutation({
     mutationFn: async (id: string) => {
@@ -72,6 +79,7 @@ function LibraryPage() {
       return id;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onError: (e: Error) => toast.error(`تعذّر الاستئناف: ${e.message}`),
   });
   const logout = async () => { await supabase.auth.signOut(); window.location.href = "/login"; };
 

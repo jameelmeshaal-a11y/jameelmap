@@ -19,9 +19,12 @@ import {
   getAdminStats, listUsers, createUserWithRole, updateUserRole, deleteUser, listAuditLog,
 } from "@/lib/admin.functions";
 
+import { PageErrorComponent } from "@/components/page-error-boundary";
+
 export const Route = createFileRoute("/admin")({
   beforeLoad: requireBrowserAdmin,
   component: AdminPage,
+  errorComponent: PageErrorComponent,
   head: () => ({ meta: [{ title: "الإدارة — جميل ماب" }] }),
 });
 

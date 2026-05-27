@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,30 +8,97 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { Loader2, LogIn } from "lucide-react";
 
+import { PageErrorComponent } from "@/components/page-error-boundary";
+
 export const Route = createFileRoute("/login")({
   component: LoginPage,
+  errorComponent: PageErrorComponent,
   head: () => ({ meta: [{ title: "تسجيل الدخول — جميل ماب" }] }),
 });
 
+const ATTEMPTS_KEY = "login_attempts";
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 30_000;
+
+function getLockoutRemaining(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = sessionStorage.getItem(ATTEMPTS_KEY);
+    if (!raw) return 0;
+    const { n, lockedUntil } = JSON.parse(raw) as { n: number; lockedUntil: number };
+    if (n >= MAX_ATTEMPTS && lockedUntil > Date.now()) return lockedUntil - Date.now();
+    return 0;
+  } catch { return 0; }
+}
+
+function bumpAttempts() {
+  try {
+    const raw = sessionStorage.getItem(ATTEMPTS_KEY);
+    const cur = raw ? JSON.parse(raw) as { n: number; lockedUntil: number } : { n: 0, lockedUntil: 0 };
+    const n = cur.n + 1;
+    const lockedUntil = n >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : 0;
+    sessionStorage.setItem(ATTEMPTS_KEY, JSON.stringify({ n, lockedUntil }));
+  } catch { /* ignore */ }
+}
+
+function clearAttempts() {
+  try { sessionStorage.removeItem(ATTEMPTS_KEY); } catch { /* ignore */ }
+}
+
+function translateAuthError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes("invalid login") || m.includes("invalid credentials")) return "البريد أو كلمة المرور غير صحيحة";
+  if (m.includes("email not confirmed")) return "البريد لم يُؤكَّد بعد";
+  if (m.includes("too many requests") || m.includes("rate limit")) return "محاولات كثيرة — انتظر قليلاً ثم حاول مجدداً";
+  if (m.includes("network")) return "تعذّر الاتصال بالخادم — تحقق من الإنترنت";
+  return msg;
+}
+
 function LoginPage() {
-  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [lockSec, setLockSec] = useState(0);
+
+  // مؤقت قفل بعد المحاولات الزائدة
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const r = getLockoutRemaining();
+      setLockSec(Math.ceil(r / 1000));
+      if (r > 0) t = setTimeout(tick, 1000);
+    };
+    tick();
+    return () => { if (t) clearTimeout(t); };
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
+    const remaining = getLockoutRemaining();
+    if (remaining > 0) {
+      setError(`تم تعطيل الدخول مؤقتاً. حاول بعد ${Math.ceil(remaining / 1000)} ثانية.`);
       return;
     }
-    // تحميل صلب للصفحة بعد الدخول لضمان جاهزية الجلسة وتفادي إلغاء الانتقال من قبل onAuthStateChange
-    window.location.assign("/");
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) {
+        bumpAttempts();
+        setError(translateAuthError(error.message));
+        const r = getLockoutRemaining();
+        if (r > 0) setLockSec(Math.ceil(r / 1000));
+        return;
+      }
+      clearAttempts();
+      // تحميل صلب للصفحة بعد الدخول لضمان جاهزية الجلسة
+      window.location.assign("/");
+    } catch (err) {
+      setLoading(false);
+      setError(translateAuthError((err as Error)?.message ?? "حدث خطأ غير متوقع"));
+    }
   };
 
   return (
@@ -52,7 +119,8 @@ function LoginPage() {
             <Input id="password" type="password" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           {error && <p className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={loading} className="w-full" size="lg">
+          {lockSec > 0 && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">معطّل مؤقتاً — حاول بعد {lockSec}ث</p>}
+          <Button type="submit" disabled={loading || lockSec > 0} className="w-full" size="lg">
             {loading ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" /> جاري الدخول...</> : <><LogIn className="ml-2 h-4 w-4" /> دخول</>}
           </Button>
         </form>
