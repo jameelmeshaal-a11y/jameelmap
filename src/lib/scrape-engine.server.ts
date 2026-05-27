@@ -23,6 +23,35 @@ const SAVE_CHUNK = 50;
 const DEFAULT_MAX_RESULTS = 2000;
 const HARD_CAP = 20000;
 
+// توسيع الكلمات المفتاحية لرفع التغطية (يُدمج عبر place_id فلا تكرار)
+function expandKeywords(activity: string): string[] {
+  const a = activity.trim();
+  const lower = a.toLowerCase();
+  const set = new Set<string>([a]);
+  const map: Record<string, string[]> = {
+    coffee: ["coffee shop", "cafe", "كافيه", "مقهى"],
+    cafe: ["cafe", "coffee shop", "كافيه", "مقهى"],
+    "كافيه": ["كافيه", "مقهى", "coffee shop", "cafe"],
+    "مقهى": ["مقهى", "كافيه", "coffee shop", "cafe"],
+    restaurant: ["restaurant", "مطعم"],
+    "مطعم": ["مطعم", "restaurant"],
+    pharmacy: ["pharmacy", "صيدلية"],
+    "صيدلية": ["صيدلية", "pharmacy"],
+    hotel: ["hotel", "فندق"],
+    "فندق": ["فندق", "hotel"],
+    gym: ["gym", "fitness", "نادي رياضي"],
+    salon: ["salon", "barber", "صالون"],
+  };
+  const extras = map[lower];
+  if (extras) for (const e of extras) set.add(e);
+  else {
+    // افتراضياً أضف صيغ شائعة
+    set.add(`${a} shop`);
+    set.add(`${a} store`);
+  }
+  return Array.from(set).slice(0, 5);
+}
+
 async function isJobStopped(jobId: string): Promise<boolean> {
   const { data } = await supabaseAdmin
     .from("scrape_jobs")
