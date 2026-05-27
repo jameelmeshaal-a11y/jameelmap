@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,16 +62,16 @@ function LoginPage() {
   const [lockSec, setLockSec] = useState(0);
 
   // مؤقت قفل بعد المحاولات الزائدة
-  useState(() => {
-    if (typeof window === "undefined") return 0;
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
     const tick = () => {
       const r = getLockoutRemaining();
       setLockSec(Math.ceil(r / 1000));
-      if (r > 0) setTimeout(tick, 1000);
+      if (r > 0) t = setTimeout(tick, 1000);
     };
     tick();
-    return 0;
-  });
+    return () => { if (t) clearTimeout(t); };
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,7 +119,8 @@ function LoginPage() {
             <Input id="password" type="password" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           {error && <p className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={loading} className="w-full" size="lg">
+          {lockSec > 0 && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">معطّل مؤقتاً — حاول بعد {lockSec}ث</p>}
+          <Button type="submit" disabled={loading || lockSec > 0} className="w-full" size="lg">
             {loading ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" /> جاري الدخول...</> : <><LogIn className="ml-2 h-4 w-4" /> دخول</>}
           </Button>
         </form>
