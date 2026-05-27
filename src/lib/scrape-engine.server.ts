@@ -429,7 +429,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
       return;
     }
 
-    const allFailed = citiesFailed === cities.length;
+    const allFailed = cities.length > 0 && citiesFailed === cities.length;
     if (allFailed) {
       await supabaseAdmin.from("scrape_jobs").update({
         status: "failed",
@@ -443,7 +443,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
     await supabaseAdmin.from("scrape_jobs").update({
       status: "completed",
       current_city: "",
-      cities_done: cities.length,
+      cities_done: citiesDone,
       results_count: totalSaved,
       from_cache: citiesFromCache > 0,
       error_message: citiesFailed > 0 ? `تنبيه: فشلت ${citiesFailed} مدينة` : "",
