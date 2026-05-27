@@ -413,11 +413,18 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
       return;
     }
 
+    // اقرأ العدد الحقيقي من قاعدة البيانات (المصدر الوحيد للحقيقة)
+    const { count: realCount } = await supabaseAdmin
+      .from("scrape_results")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", jobId);
+    const finalCount = realCount ?? totalSaved;
+
     await supabaseAdmin.from("scrape_jobs").update({
       status: "completed",
       current_city: "",
       cities_done: citiesDone,
-      results_count: totalSaved,
+      results_count: finalCount,
       from_cache: citiesFromCache > 0,
       error_message: citiesFailed > 0 ? `تنبيه: فشلت ${citiesFailed} مدينة` : "",
       updated_at: new Date().toISOString(),
