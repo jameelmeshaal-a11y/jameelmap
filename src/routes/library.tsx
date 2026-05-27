@@ -24,6 +24,13 @@ export const Route = createFileRoute("/library")({
   }),
 });
 
+function isStuck(j: { status?: unknown; updated_at?: unknown }): boolean {
+  if (j.status !== "running" && j.status !== "pending") return false;
+  const t = typeof j.updated_at === "string" ? Date.parse(j.updated_at) : 0;
+  if (!t) return false;
+  return Date.now() - t > 3 * 60 * 1000;
+}
+
 function LibraryPage() {
   const qc = useQueryClient();
   const fn = useServerFn(listJobs);

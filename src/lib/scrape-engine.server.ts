@@ -8,7 +8,9 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveCities, MOSQUE_KEYWORDS, isMosqueActivity } from "@/lib/country-cities";
-import { enrichFromWebsite, runInBatches, normalizeName, EMPTY_ENRICHMENT } from "@/lib/enrich.server";
+import { enrichFromWebsite, runInBatches, normalizeName } from "@/lib/enrich.server";
+
+const ENRICH_CONCURRENCY = 4;
 import { readSearchCache, writeSearchCache } from "@/lib/cache.server";
 import {
   geocodeCity, tileViewport, searchCellAdaptive, pool,
@@ -17,7 +19,6 @@ import {
 
 const CITY_CONCURRENCY = 5;
 const CELL_CONCURRENCY = 8;
-const ENRICH_CONCURRENCY = 4;
 const GRID_SIZE = 6;
 const SAVE_CHUNK = 50;
 const DEFAULT_MAX_RESULTS = 2000;
@@ -109,7 +110,6 @@ async function processCity(
   activity: string,
   keywords: string[],
   globalSeen: Set<string>,
-  globalDedupKeys: Set<string>,
   remainingBudget: () => number,
 ): Promise<ProcessCityResult> {
   // 1) كاش — TTL 3 أيام
@@ -197,25 +197,19 @@ async function processCity(
     return { city, saved: 0, error: "stopped" };
   }
 
-  // Dedup عالمياً
+  // Dedup عالمياً — place_id فقط (المفتاح الفريد المضمون من Google)
   const fresh: RawPlace[] = [];
   for (const r of localResults) {
     if (remainingBudget() <= fresh.length) break;
     if (globalSeen.has(r.place_id)) continue;
-    const nameKey = `n:${normalizeName(r.name)}|${city.toLowerCase()}`;
-    const phoneKey = r.phone ? `p:${r.phone}` : "";
-    if (globalDedupKeys.has(nameKey)) continue;
-    if (phoneKey && globalDedupKeys.has(phoneKey)) continue;
     globalSeen.add(r.place_id);
-    globalDedupKeys.add(nameKey);
-    if (phoneKey) globalDedupKeys.add(phoneKey);
     fresh.push(r);
   }
 
-  // ✅ احفظ الصفوف الأساسية فوراً بدُفعات 50 (قبل الإثراء) — يحلّ تجمد 88%
+  // احفظ الصفوف بدُفعات 50 — بدون إثراء تلقائي (الإيميلات عبر زر منفصل)
   await updateCity(jobId, city, {
-    progress: 75,
-    current_step: `حفظ ${fresh.length} سجل أساسي...`,
+    progress: 80,
+    current_step: `حفظ ${fresh.length} سجل...`,
   });
 
   let saved = 0;
@@ -241,54 +235,11 @@ async function processCity(
     }));
     saved += await saveBatch(jobId, chunk);
     await updateCity(jobId, city, {
-      progress: 75 + Math.round(((i + chunk.length) / Math.max(1, fresh.length)) * 8),
+      progress: 80 + Math.round(((i + chunk.length) / Math.max(1, fresh.length)) * 18),
       current_step: `حفظ ${Math.min(i + SAVE_CHUNK, fresh.length)}/${fresh.length}`,
       results_count: saved,
     });
   }
-
-  // الإثراء (إيميل/سوشيال) للمواقع — يحدّث الصفوف المحفوظة، اختياري
-  const toEnrich = fresh.filter((r) => r.website);
-  if (toEnrich.length > 0) {
-    await updateCity(jobId, city, {
-      progress: 85,
-      current_step: `إثراء ${toEnrich.length} موقع (اختياري)`,
-    });
-
-    let enriched = 0;
-    await runInBatches(toEnrich, ENRICH_CONCURRENCY, async (r) => {
-      if (await isJobStopped(jobId)) return;
-      try {
-        const e = await enrichFromWebsite(r.website, r.phone);
-        if (e.email || e.facebook || e.instagram || e.whatsapp) {
-          const patch: Record<string, string> = {};
-          if (e.email) patch.email = e.email;
-          if (e.facebook) patch.facebook = e.facebook;
-          if (e.instagram) patch.instagram = e.instagram;
-          if (e.twitter) patch.twitter = e.twitter;
-          if (e.youtube) patch.youtube = e.youtube;
-          if (e.tiktok) patch.tiktok = e.tiktok;
-          if (e.snapchat) patch.snapchat = e.snapchat;
-          if (e.whatsapp) patch.whatsapp = e.whatsapp;
-          patch.email_scraped_at = new Date().toISOString();
-          await (supabaseAdmin.from("scrape_results") as unknown as {
-            update: (p: unknown) => { eq: (a: string, b: string) => { eq: (a: string, b: string) => Promise<unknown> } };
-          }).update(patch).eq("job_id", jobId).eq("place_id", r.place_id);
-        }
-      } catch {
-        /* تجاهل أخطاء الإثراء الفردية */
-      }
-      enriched++;
-      if (enriched % 10 === 0) {
-        await updateCity(jobId, city, {
-          progress: 85 + Math.round((enriched / toEnrich.length) * 14),
-          current_step: `إثراء ${enriched}/${toEnrich.length}`,
-        });
-      }
-    });
-  }
-
-  void EMPTY_ENRICHMENT;
 
   // اكتب الكاش (3 أيام) بعد الاكتمال
   if (fresh.length > 0) {
@@ -377,7 +328,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
   }).eq("id", jobId);
 
   const globalSeen = new Set<string>();
-  const globalDedupKeys = new Set<string>();
+  // Dedup عبر place_id فقط (المفتاح الفريد المضمون)
   let totalSaved = initialSaved;
   let citiesDone = initialDone;
   let citiesFailed = 0;
@@ -399,7 +350,7 @@ export async function runScrapeJob(jobId: string, country: string, activity: str
         updated_at: new Date().toISOString(),
       }).eq("id", jobId);
 
-      const res = await processCity(jobId, city, country, activity, keywords, globalSeen, globalDedupKeys, remainingBudget);
+      const res = await processCity(jobId, city, country, activity, keywords, globalSeen, remainingBudget);
       if (res.error && res.error !== "stopped") {
         citiesFailed++;
         lastError = res.error;
