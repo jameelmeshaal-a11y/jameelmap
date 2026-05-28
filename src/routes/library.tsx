@@ -107,8 +107,8 @@ function LibraryPage() {
             <Button variant="outline" size="sm" onClick={() => delEmptyMut.mutate()} disabled={delEmptyMut.isPending}>
               <Trash2 className="ml-1.5 h-4 w-4" /> حذف الفارغة
             </Button>
-            <a href="/api/public/download-all" download className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-              <Download className="h-4 w-4" /> تصدير مجمّع
+            <a href="/api/public/download-all" download className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
+              <Download className="h-4 w-4" /> تصدير الكل
             </a>
             <Link to="/"><Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button></Link>
             <Button variant="ghost" size="sm" onClick={logout}><LogOut className="ml-1.5 h-4 w-4" /> خروج</Button>
