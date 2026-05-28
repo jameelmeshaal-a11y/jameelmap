@@ -1,5 +1,5 @@
 // جلب ديناميكي للمدن داخل دولة محددة عبر Places API (New)
-// يستخدم Autocomplete + searchText بـ 24 بذرة ويُكاش لـ 30 يوم
+// يستخدم Autocomplete + searchText بعدّة بذور ولغات، يُكاش لـ 30 يوم
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -14,7 +14,10 @@ interface City {
   score: number;
 }
 
-const SEEDS = "abcdefghijklmnopqrstuvwxyz".split("").concat(["١","٢","٣"]);
+const SEEDS_LATIN = "abcdefghijklmnopqrstuvwxyz".split("");
+const SEEDS_ARABIC = ["ا","ب","ت","ج","ح","خ","د","ر","س","ش","ص","ط","ع","ف","ق","ك","ل","م","ن","ه","و","ي"];
+// أنواع موسّعة لالتقاط البلدات والقرى الصغيرة (مثل: رماح)
+const INCLUDED_TYPES = ["locality", "sublocality", "administrative_area_level_3", "administrative_area_level_2"];
 
 export const fetchCitiesForCountry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -28,7 +31,8 @@ export const fetchCitiesForCountry = createServerFn({ method: "POST" })
       return { cities: [], code: null, error: `لم يتم التعرف على الدولة "${data.country}". اكتب اسمها بالإنجليزية أو رمز ISO (مثال: US, SA, EG).` };
     }
 
-    const cacheKey = citiesCacheKey(code);
+    // v2: مفتاح كاش جديد لإبطال البيانات القديمة المحدودة
+    const cacheKey = `${citiesCacheKey(code)}_v2`;
     if (!data.forceRefresh) {
       const hit = await readCacheRaw<{ cities: City[] }>(cacheKey);
       if (hit) {
@@ -59,17 +63,18 @@ export const fetchCitiesForCountry = createServerFn({ method: "POST" })
       else cityMap.set(key, { name: clean, score: bonus });
     };
 
-    // 1) Autocomplete بذور بالتوازي
-    await Promise.all(SEEDS.map(async (seed) => {
+    // 1) Autocomplete بذور لاتينية (en) + عربية (ar) بالتوازي — أنواع موسّعة
+    const tasks: Promise<void>[] = [];
+    const runAutocomplete = (seed: string, languageCode: string) => tasks.push((async () => {
       try {
         const res = await fetch(`${GATEWAY}/places/v1/places:autocomplete`, {
           method: "POST",
           headers,
           body: JSON.stringify({
             input: seed,
-            includedPrimaryTypes: ["locality", "administrative_area_level_3"],
+            includedPrimaryTypes: INCLUDED_TYPES,
             includedRegionCodes: [code.toLowerCase()],
-            languageCode: "en",
+            languageCode,
           }),
         });
         if (!res.ok) return;
@@ -79,29 +84,37 @@ export const fetchCitiesForCountry = createServerFn({ method: "POST" })
           if (name) upsert(name, 2);
         }
       } catch { /* تجاهل خطأ بذرة واحدة */ }
-    }));
+    })());
+    for (const s of SEEDS_LATIN) runAutocomplete(s, "en");
+    for (const s of SEEDS_ARABIC) runAutocomplete(s, "ar");
+    await Promise.all(tasks);
 
-    // 2) searchText للأمان (يلتقط المدن الكبيرة)
-    try {
-      const res = await fetch(`${GATEWAY}/places/v1/places:searchText`, {
-        method: "POST",
-        headers: { ...headers, "X-Goog-FieldMask": "places.displayName,places.shortFormattedAddress" },
-        body: JSON.stringify({
-          textQuery: `cities in ${data.country}`,
-          includedType: "locality",
-          regionCode: code.toLowerCase(),
-          languageCode: "en",
-          pageSize: 20,
-        }),
-      });
-      if (res.ok) {
-        const json = await res.json() as { places?: Array<{ displayName?: { text?: string } }> };
-        for (const p of json.places ?? []) {
-          const name = p.displayName?.text;
-          if (name) upsert(name, 3);
+    // 2) searchText بدون فلتر صارم — استعلامان لتوسعة التغطية
+    const TEXT_QUERIES = [
+      `cities in ${data.country}`,
+      `towns and villages in ${data.country}`,
+    ];
+    await Promise.all(TEXT_QUERIES.map(async (textQuery) => {
+      try {
+        const res = await fetch(`${GATEWAY}/places/v1/places:searchText`, {
+          method: "POST",
+          headers: { ...headers, "X-Goog-FieldMask": "places.displayName,places.shortFormattedAddress,places.types" },
+          body: JSON.stringify({
+            textQuery,
+            regionCode: code.toLowerCase(),
+            languageCode: "en",
+            pageSize: 20,
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json() as { places?: Array<{ displayName?: { text?: string } }> };
+          for (const p of json.places ?? []) {
+            const name = p.displayName?.text;
+            if (name) upsert(name, 3);
+          }
         }
-      }
-    } catch { /* تجاهل */ }
+      } catch { /* تجاهل */ }
+    }));
 
     const cities = Array.from(cityMap.values()).sort((a, b) => b.score - a.score);
     await writeCacheRaw(cacheKey, { cities }, 30, cities.length);
