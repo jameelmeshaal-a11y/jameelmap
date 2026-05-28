@@ -42,6 +42,14 @@ function LibraryPage() {
   const delJobFn = useServerFn(deleteJob);
   const scrapeEmailsFn = useServerFn(scrapeJobEmails);
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSel = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => fn(),
