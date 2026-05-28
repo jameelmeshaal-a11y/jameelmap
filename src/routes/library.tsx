@@ -154,6 +154,57 @@ function LibraryPage() {
           />
         </div>
 
+        {(() => {
+          const eligible = filteredJobs.filter((j) => (j.results_count as number) > 0);
+          const eligibleIds = eligible.map((j) => j.id as string);
+          const allSelected = eligibleIds.length > 0 && eligibleIds.every((id) => selected.has(id));
+          const toggleAll = () => {
+            setSelected((prev) => {
+              if (allSelected) {
+                const next = new Set(prev);
+                for (const id of eligibleIds) next.delete(id);
+                return next;
+              }
+              const next = new Set(prev);
+              for (const id of eligibleIds) next.add(id);
+              return next;
+            });
+          };
+          const exportSelected = () => {
+            const ids = Array.from(selected);
+            if (ids.length === 0) return;
+            window.location.href = `/api/public/download-selected?ids=${ids.join(",")}`;
+          };
+          return (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card px-3 py-2">
+              <div className="flex items-center gap-3 text-sm">
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    disabled={eligibleIds.length === 0}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <span>{allSelected ? "إلغاء تحديد الكل" : "تحديد الكل"}</span>
+                </label>
+                <span className="text-muted-foreground">
+                  المحدد: <strong className="text-foreground">{selected.size}</strong>
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={exportSelected}
+                disabled={selected.size === 0}
+                className="gap-1.5"
+              >
+                <Download className="h-4 w-4" /> تصدير المحدد ({selected.size})
+              </Button>
+            </div>
+          );
+        })()}
+
+
         <div className="space-y-3">
           {filteredJobs.map((j) => (
             <Card key={j.id} className="p-4 transition-shadow hover:shadow-md">
