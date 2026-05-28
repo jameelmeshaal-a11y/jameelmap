@@ -15,6 +15,7 @@ import { Route as BootstrapRouteImport } from './routes/bootstrap'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LibraryJobIdRouteImport } from './routes/library.$jobId'
+import { Route as ApiPublicDownloadSelectedRouteImport } from './routes/api/public/download-selected'
 import { Route as ApiPublicDownloadAllRouteImport } from './routes/api/public/download-all'
 import { Route as ApiPublicRunJobJobIdRouteImport } from './routes/api/public/run-job.$jobId'
 import { Route as ApiPublicReenrichJobIdRouteImport } from './routes/api/public/reenrich.$jobId'
@@ -50,6 +51,12 @@ const LibraryJobIdRoute = LibraryJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => LibraryRoute,
 } as any)
+const ApiPublicDownloadSelectedRoute =
+  ApiPublicDownloadSelectedRouteImport.update({
+    id: '/api/public/download-selected',
+    path: '/api/public/download-selected',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicDownloadAllRoute = ApiPublicDownloadAllRouteImport.update({
   id: '/api/public/download-all',
   path: '/api/public/download-all',
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/api/public/download-all': typeof ApiPublicDownloadAllRoute
+  '/api/public/download-selected': typeof ApiPublicDownloadSelectedRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
   '/api/public/reenrich/$jobId': typeof ApiPublicReenrichJobIdRoute
   '/api/public/run-job/$jobId': typeof ApiPublicRunJobJobIdRoute
@@ -91,6 +99,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/api/public/download-all': typeof ApiPublicDownloadAllRoute
+  '/api/public/download-selected': typeof ApiPublicDownloadSelectedRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
   '/api/public/reenrich/$jobId': typeof ApiPublicReenrichJobIdRoute
   '/api/public/run-job/$jobId': typeof ApiPublicRunJobJobIdRoute
@@ -104,6 +113,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/api/public/download-all': typeof ApiPublicDownloadAllRoute
+  '/api/public/download-selected': typeof ApiPublicDownloadSelectedRoute
   '/api/public/download/$jobId': typeof ApiPublicDownloadJobIdRoute
   '/api/public/reenrich/$jobId': typeof ApiPublicReenrichJobIdRoute
   '/api/public/run-job/$jobId': typeof ApiPublicRunJobJobIdRoute
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/library/$jobId'
     | '/api/public/download-all'
+    | '/api/public/download-selected'
     | '/api/public/download/$jobId'
     | '/api/public/reenrich/$jobId'
     | '/api/public/run-job/$jobId'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/library/$jobId'
     | '/api/public/download-all'
+    | '/api/public/download-selected'
     | '/api/public/download/$jobId'
     | '/api/public/reenrich/$jobId'
     | '/api/public/run-job/$jobId'
@@ -142,6 +154,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/library/$jobId'
     | '/api/public/download-all'
+    | '/api/public/download-selected'
     | '/api/public/download/$jobId'
     | '/api/public/reenrich/$jobId'
     | '/api/public/run-job/$jobId'
@@ -154,6 +167,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiPublicDownloadAllRoute: typeof ApiPublicDownloadAllRoute
+  ApiPublicDownloadSelectedRoute: typeof ApiPublicDownloadSelectedRoute
   ApiPublicDownloadJobIdRoute: typeof ApiPublicDownloadJobIdRoute
   ApiPublicReenrichJobIdRoute: typeof ApiPublicReenrichJobIdRoute
   ApiPublicRunJobJobIdRoute: typeof ApiPublicRunJobJobIdRoute
@@ -202,6 +216,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/library/$jobId'
       preLoaderRoute: typeof LibraryJobIdRouteImport
       parentRoute: typeof LibraryRoute
+    }
+    '/api/public/download-selected': {
+      id: '/api/public/download-selected'
+      path: '/api/public/download-selected'
+      fullPath: '/api/public/download-selected'
+      preLoaderRoute: typeof ApiPublicDownloadSelectedRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/download-all': {
       id: '/api/public/download-all'
@@ -252,6 +273,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiPublicDownloadAllRoute: ApiPublicDownloadAllRoute,
+  ApiPublicDownloadSelectedRoute: ApiPublicDownloadSelectedRoute,
   ApiPublicDownloadJobIdRoute: ApiPublicDownloadJobIdRoute,
   ApiPublicReenrichJobIdRoute: ApiPublicReenrichJobIdRoute,
   ApiPublicRunJobJobIdRoute: ApiPublicRunJobJobIdRoute,

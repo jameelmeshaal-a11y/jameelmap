@@ -42,6 +42,14 @@ function LibraryPage() {
   const delJobFn = useServerFn(deleteJob);
   const scrapeEmailsFn = useServerFn(scrapeJobEmails);
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleSel = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
   const { data, isLoading, error } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => fn(),
@@ -99,8 +107,8 @@ function LibraryPage() {
             <Button variant="outline" size="sm" onClick={() => delEmptyMut.mutate()} disabled={delEmptyMut.isPending}>
               <Trash2 className="ml-1.5 h-4 w-4" /> حذف الفارغة
             </Button>
-            <a href="/api/public/download-all" download className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-              <Download className="h-4 w-4" /> تصدير مجمّع
+            <a href="/api/public/download-all" download className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent">
+              <Download className="h-4 w-4" /> تصدير الكل
             </a>
             <Link to="/"><Button variant="ghost" size="sm"><Home className="ml-2 h-4 w-4" /> الرئيسية</Button></Link>
             <Button variant="ghost" size="sm" onClick={logout}><LogOut className="ml-1.5 h-4 w-4" /> خروج</Button>
@@ -146,10 +154,70 @@ function LibraryPage() {
           />
         </div>
 
+        {(() => {
+          const eligible = filteredJobs.filter((j) => (j.results_count as number) > 0);
+          const eligibleIds = eligible.map((j) => j.id as string);
+          const allSelected = eligibleIds.length > 0 && eligibleIds.every((id) => selected.has(id));
+          const toggleAll = () => {
+            setSelected((prev) => {
+              if (allSelected) {
+                const next = new Set(prev);
+                for (const id of eligibleIds) next.delete(id);
+                return next;
+              }
+              const next = new Set(prev);
+              for (const id of eligibleIds) next.add(id);
+              return next;
+            });
+          };
+          const exportSelected = () => {
+            const ids = Array.from(selected);
+            if (ids.length === 0) return;
+            window.location.href = `/api/public/download-selected?ids=${ids.join(",")}`;
+          };
+          return (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card px-3 py-2">
+              <div className="flex items-center gap-3 text-sm">
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    disabled={eligibleIds.length === 0}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  <span>{allSelected ? "إلغاء تحديد الكل" : "تحديد الكل"}</span>
+                </label>
+                <span className="text-muted-foreground">
+                  المحدد: <strong className="text-foreground">{selected.size}</strong>
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={exportSelected}
+                disabled={selected.size === 0}
+                className="gap-1.5"
+              >
+                <Download className="h-4 w-4" /> تصدير المحدد ({selected.size})
+              </Button>
+            </div>
+          );
+        })()}
+
+
         <div className="space-y-3">
           {filteredJobs.map((j) => (
             <Card key={j.id} className="p-4 transition-shadow hover:shadow-md">
               <div className="flex flex-wrap items-center justify-between gap-3">
+                {(j.results_count as number) > 0 && (
+                  <input
+                    type="checkbox"
+                    aria-label="تحديد هذه العملية للتصدير"
+                    checked={selected.has(j.id as string)}
+                    onChange={() => toggleSel(j.id as string)}
+                    className="h-4 w-4 shrink-0 accent-primary"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-semibold">{j.activity}</h2>
