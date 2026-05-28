@@ -209,6 +209,15 @@ function LibraryPage() {
           {filteredJobs.map((j) => (
             <Card key={j.id} className="p-4 transition-shadow hover:shadow-md">
               <div className="flex flex-wrap items-center justify-between gap-3">
+                {(j.results_count as number) > 0 && (
+                  <input
+                    type="checkbox"
+                    aria-label="تحديد هذه العملية للتصدير"
+                    checked={selected.has(j.id as string)}
+                    onChange={() => toggleSel(j.id as string)}
+                    className="h-4 w-4 shrink-0 accent-primary"
+                  />
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-base font-semibold">{j.activity}</h2>
