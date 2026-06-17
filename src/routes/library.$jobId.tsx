@@ -177,6 +177,45 @@ function JobDetailPage() {
               <p className="mb-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{reMsg}</p>
             )}
 
+            {/* لوحة المدن الفاشلة */}
+            {citiesQ.data && citiesQ.data.failed.length > 0 && (
+              <Card className="mb-4 border-amber-200 bg-amber-50/60 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-900">
+                        {citiesQ.data.failed.length} مدينة فشلت أثناء الجمع
+                      </h3>
+                      <p className="mt-0.5 text-xs text-amber-800">
+                        يمكنك إعادة المحاولة لهذه المدن فقط دون إعادة تشغيل العملية كاملة.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => retryMut.mutate()}
+                    disabled={retryMut.isPending}
+                    className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700"
+                  >
+                    {retryMut.isPending
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> جاري...</>
+                      : <><RefreshCw className="h-4 w-4" /> إعادة محاولة المدن الفاشلة</>}
+                  </Button>
+                </div>
+                <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {citiesQ.data.failed.map((c) => (
+                    <li key={c.city as string} className="rounded-md bg-white/60 px-2 py-1.5 text-xs">
+                      <span className="font-medium text-foreground">{c.city as string}</span>
+                      {c.error_message ? (
+                        <span className="block text-[11px] text-amber-800">{c.error_message as string}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
             {/* جدول */}
             <Card className="overflow-hidden">
               <div className="overflow-x-auto">
