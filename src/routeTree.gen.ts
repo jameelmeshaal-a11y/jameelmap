@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as BootstrapRouteImport } from './routes/bootstrap'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -31,6 +32,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -54,14 +60,14 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const LibraryIndexRoute = LibraryIndexRouteImport.update({
-  id: '/library/',
-  path: '/library/',
-  getParentRoute: () => rootRouteImport,
+  id: '/',
+  path: '/',
+  getParentRoute: () => LibraryRoute,
 } as any)
 const LibraryJobIdRoute = LibraryJobIdRouteImport.update({
-  id: '/library/$jobId',
-  path: '/library/$jobId',
-  getParentRoute: () => rootRouteImport,
+  id: '/$jobId',
+  path: '/$jobId',
+  getParentRoute: () => LibraryRoute,
 } as any)
 const ApiPublicDownloadSelectedRoute =
   ApiPublicDownloadSelectedRouteImport.update({
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/bootstrap': typeof BootstrapRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/library/$jobId': typeof LibraryJobIdRoute
@@ -126,6 +133,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/bootstrap': typeof BootstrapRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/library/$jobId': typeof LibraryJobIdRoute
@@ -143,6 +151,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/bootstrap'
     | '/forgot-password'
+    | '/library'
     | '/login'
     | '/reset-password'
     | '/library/$jobId'
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/bootstrap'
     | '/forgot-password'
+    | '/library'
     | '/login'
     | '/reset-password'
     | '/library/$jobId'
@@ -189,10 +199,9 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   BootstrapRoute: typeof BootstrapRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  LibraryRoute: typeof LibraryRouteWithChildren
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  LibraryJobIdRoute: typeof LibraryJobIdRoute
-  LibraryIndexRoute: typeof LibraryIndexRoute
   ApiPublicDownloadAllRoute: typeof ApiPublicDownloadAllRoute
   ApiPublicDownloadSelectedRoute: typeof ApiPublicDownloadSelectedRoute
   ApiPublicDownloadJobIdRoute: typeof ApiPublicDownloadJobIdRoute
@@ -214,6 +223,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -246,17 +262,17 @@ declare module '@tanstack/react-router' {
     }
     '/library/': {
       id: '/library/'
-      path: '/library'
+      path: '/'
       fullPath: '/library/'
       preLoaderRoute: typeof LibraryIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof LibraryRoute
     }
     '/library/$jobId': {
       id: '/library/$jobId'
-      path: '/library/$jobId'
+      path: '/$jobId'
       fullPath: '/library/$jobId'
       preLoaderRoute: typeof LibraryJobIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof LibraryRoute
     }
     '/api/public/download-selected': {
       id: '/api/public/download-selected'
@@ -296,15 +312,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LibraryRouteChildren {
+  LibraryJobIdRoute: typeof LibraryJobIdRoute
+  LibraryIndexRoute: typeof LibraryIndexRoute
+}
+
+const LibraryRouteChildren: LibraryRouteChildren = {
+  LibraryJobIdRoute: LibraryJobIdRoute,
+  LibraryIndexRoute: LibraryIndexRoute,
+}
+
+const LibraryRouteWithChildren =
+  LibraryRoute._addFileChildren(LibraryRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BootstrapRoute: BootstrapRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  LibraryRoute: LibraryRouteWithChildren,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  LibraryJobIdRoute: LibraryJobIdRoute,
-  LibraryIndexRoute: LibraryIndexRoute,
   ApiPublicDownloadAllRoute: ApiPublicDownloadAllRoute,
   ApiPublicDownloadSelectedRoute: ApiPublicDownloadSelectedRoute,
   ApiPublicDownloadJobIdRoute: ApiPublicDownloadJobIdRoute,
