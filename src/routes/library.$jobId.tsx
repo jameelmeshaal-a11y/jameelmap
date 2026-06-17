@@ -39,6 +39,8 @@ function JobDetailPage() {
   const qc = useQueryClient();
   const detailFn = useServerFn(getJobDetail);
   const dedupFn = useServerFn(runDedup);
+  const citiesFn = useServerFn(getJobCities);
+  const retryFn = useServerFn(retryFailedCities);
   const [search, setSearch] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [reMsg, setReMsg] = useState<string>("");
@@ -46,6 +48,24 @@ function JobDetailPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["job-detail", jobId, submitted],
     queryFn: () => detailFn({ data: { jobId, search: submitted || undefined } }),
+  });
+
+  const citiesQ = useQuery({
+    queryKey: ["job-cities", jobId],
+    queryFn: () => citiesFn({ data: { jobId } }),
+    refetchInterval: 8000,
+  });
+
+  const retryMut = useMutation({
+    mutationFn: () => retryFn({ data: { jobId } }),
+    onSuccess: async (r) => {
+      toast.success(`أُعيد فتح ${r.reset} مدينة فاشلة — جاري الاستئناف...`);
+      // ابدأ الـ runner مرة أخرى
+      void fetch(`/api/public/run-job/${jobId}`, { method: "POST" }).catch(() => {});
+      qc.invalidateQueries({ queryKey: ["job-cities", jobId] });
+      qc.invalidateQueries({ queryKey: ["job-detail", jobId] });
+    },
+    onError: (e: Error) => toast.error(`تعذّر إعادة المحاولة: ${e.message}`),
   });
 
   const dedupMut = useMutation({
