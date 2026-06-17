@@ -2,22 +2,36 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getJobDetail, runDedup } from "@/lib/library.functions";
+import { getJobDetail, runDedup, getJobCities, retryFailedCities } from "@/lib/library.functions";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowRight, Download, Facebook, Globe, Instagram, Loader2, Mail, MapPin,
-  Phone, Search, Sparkles, Trash2, Twitter, Youtube,
+  AlertTriangle, Download, Facebook, Globe, Instagram, Loader2, MapPin,
+  Phone, RefreshCw, Search, Sparkles, Trash2, Twitter, Youtube,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { requireBrowserUser } from "@/lib/auth-guards";
 import { PageErrorComponent } from "@/components/page-error-boundary";
+
+function NotFound() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-2xl font-bold">الوظيفة غير موجودة</h1>
+        <p className="mt-2 text-sm text-muted-foreground">قد تكون حُذفت أو أن الرابط غير صحيح.</p>
+        <Link to="/library" className="mt-4 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">العودة للمكتبة</Link>
+      </div>
+    </main>
+  );
+}
 
 export const Route = createFileRoute("/library/$jobId")({
   beforeLoad: requireBrowserUser,
   component: JobDetailPage,
   errorComponent: PageErrorComponent,
+  notFoundComponent: NotFound,
 });
 
 function JobDetailPage() {
@@ -25,6 +39,8 @@ function JobDetailPage() {
   const qc = useQueryClient();
   const detailFn = useServerFn(getJobDetail);
   const dedupFn = useServerFn(runDedup);
+  const citiesFn = useServerFn(getJobCities);
+  const retryFn = useServerFn(retryFailedCities);
   const [search, setSearch] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [reMsg, setReMsg] = useState<string>("");
@@ -32,6 +48,24 @@ function JobDetailPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["job-detail", jobId, submitted],
     queryFn: () => detailFn({ data: { jobId, search: submitted || undefined } }),
+  });
+
+  const citiesQ = useQuery({
+    queryKey: ["job-cities", jobId],
+    queryFn: () => citiesFn({ data: { jobId } }),
+    refetchInterval: 8000,
+  });
+
+  const retryMut = useMutation({
+    mutationFn: () => retryFn({ data: { jobId } }),
+    onSuccess: async (r) => {
+      toast.success(`أُعيد فتح ${r.reset} مدينة فاشلة — جاري الاستئناف...`);
+      // ابدأ الـ runner مرة أخرى
+      void fetch(`/api/public/run-job/${jobId}`, { method: "POST" }).catch(() => {});
+      qc.invalidateQueries({ queryKey: ["job-cities", jobId] });
+      qc.invalidateQueries({ queryKey: ["job-detail", jobId] });
+    },
+    onError: (e: Error) => toast.error(`تعذّر إعادة المحاولة: ${e.message}`),
   });
 
   const dedupMut = useMutation({
@@ -141,6 +175,45 @@ function JobDetailPage() {
 
             {reMsg && (
               <p className="mb-4 rounded-md bg-emerald-50 p-3 text-sm text-emerald-800">{reMsg}</p>
+            )}
+
+            {/* لوحة المدن الفاشلة */}
+            {citiesQ.data && citiesQ.data.failed.length > 0 && (
+              <Card className="mb-4 border-amber-200 bg-amber-50/60 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-900">
+                        {citiesQ.data.failed.length} مدينة فشلت أثناء الجمع
+                      </h3>
+                      <p className="mt-0.5 text-xs text-amber-800">
+                        يمكنك إعادة المحاولة لهذه المدن فقط دون إعادة تشغيل العملية كاملة.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => retryMut.mutate()}
+                    disabled={retryMut.isPending}
+                    className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700"
+                  >
+                    {retryMut.isPending
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> جاري...</>
+                      : <><RefreshCw className="h-4 w-4" /> إعادة محاولة المدن الفاشلة</>}
+                  </Button>
+                </div>
+                <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {citiesQ.data.failed.map((c) => (
+                    <li key={c.city as string} className="rounded-md bg-white/60 px-2 py-1.5 text-xs">
+                      <span className="font-medium text-foreground">{c.city as string}</span>
+                      {c.error_message ? (
+                        <span className="block text-[11px] text-amber-800">{c.error_message as string}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             )}
 
             {/* جدول */}

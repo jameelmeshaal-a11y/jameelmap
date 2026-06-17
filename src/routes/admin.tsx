@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
+import { PasswordInput } from "@/components/password-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -173,14 +174,40 @@ function CreateUserTab() {
   });
   return (
     <Card className="mt-6 max-w-md p-6">
-      <form onSubmit={(e) => { e.preventDefault(); m.mutate(); }} className="space-y-4">
+      {/* autoComplete="off" على الفورم + new-password على الحقول الحساسة لتعطيل تعبئة المتصفّح التلقائية */}
+      <form
+        onSubmit={(e) => { e.preventDefault(); m.mutate(); }}
+        autoComplete="off"
+        className="space-y-4"
+      >
+        {/* خدعة لمنع Chrome من تجاهل autoComplete=off */}
+        <input type="text" name="prevent_autofill" autoComplete="off" className="hidden" tabIndex={-1} />
+        <input type="password" name="prevent_autofill_pw" autoComplete="off" className="hidden" tabIndex={-1} />
+
         <div className="space-y-2">
-          <Label>البريد الإلكتروني</Label>
-          <Input type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Label htmlFor="new-user-email">البريد الإلكتروني</Label>
+          <Input
+            id="new-user-email"
+            name="new-user-email"
+            type="email"
+            dir="ltr"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
         <div className="space-y-2">
-          <Label>كلمة المرور</Label>
-          <Input type="password" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+          <Label htmlFor="new-user-password">كلمة المرور</Label>
+          <PasswordInput
+            id="new-user-password"
+            name="new-user-password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={8}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label>الدور</Label>

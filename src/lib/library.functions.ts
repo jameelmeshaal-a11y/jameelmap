@@ -82,6 +82,51 @@ export const getJobDetail = createServerFn({ method: "POST" })
     };
   });
 
+export const getJobCities = createServerFn({ method: "POST" })
+  .inputValidator((d: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cities, error } = await supabaseAdmin
+      .from("scrape_job_cities")
+      .select("city, status, results_count, error_message, current_step, updated_at")
+      .eq("job_id", data.jobId)
+      .order("status", { ascending: true })
+      .order("city", { ascending: true });
+    if (error) throw new Error(error.message);
+    const all = cities ?? [];
+    return {
+      cities: all,
+      failed: all.filter((c) => c.status === "failed"),
+      done: all.filter((c) => c.status === "done"),
+      pending: all.filter((c) => c.status === "pending" || c.status === "running"),
+    };
+  });
+
+export const retryFailedCities = createServerFn({ method: "POST" })
+  .inputValidator((d: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // أعِد فتح المدن الفاشلة فقط (لا نلمس المنجزة)
+    const { data: failed } = await supabaseAdmin
+      .from("scrape_job_cities")
+      .select("city")
+      .eq("job_id", data.jobId)
+      .eq("status", "failed");
+    const count = failed?.length ?? 0;
+    if (count === 0) return { reset: 0 };
+    await supabaseAdmin
+      .from("scrape_job_cities")
+      .update({ status: "pending", progress: 0, current_step: "إعادة المحاولة اليدوية", error_message: "" })
+      .eq("job_id", data.jobId)
+      .eq("status", "failed");
+    // أعِد الوظيفة لحالة pending ليلتقطها run-job
+    await supabaseAdmin
+      .from("scrape_jobs")
+      .update({ status: "pending", stopped_at: null, error_message: "" })
+      .eq("id", data.jobId);
+    return { reset: count };
+  });
+
 export const runDedup = createServerFn({ method: "POST" })
   .inputValidator((d: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {

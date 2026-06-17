@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
+import { PasswordInput } from "@/components/password-input";
 import { Loader2, LogIn } from "lucide-react";
 
 import { PageErrorComponent } from "@/components/page-error-boundary";
@@ -115,8 +116,13 @@ function LoginPage() {
             <Input id="email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">كلمة المرور</Label>
-            <Input id="password" type="password" dir="ltr" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">كلمة المرور</Label>
+              <Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                نسيت كلمة المرور؟
+              </Link>
+            </div>
+            <PasswordInput id="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           {error && <p className="rounded-md bg-destructive/10 p-2 text-sm text-destructive">{error}</p>}
           {lockSec > 0 && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">معطّل مؤقتاً — حاول بعد {lockSec}ث</p>}
