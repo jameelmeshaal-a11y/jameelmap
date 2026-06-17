@@ -2,22 +2,36 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getJobDetail, runDedup } from "@/lib/library.functions";
+import { getJobDetail, runDedup, getJobCities, retryFailedCities } from "@/lib/library.functions";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowRight, Download, Facebook, Globe, Instagram, Loader2, Mail, MapPin,
-  Phone, Search, Sparkles, Trash2, Twitter, Youtube,
+  AlertTriangle, Download, Facebook, Globe, Instagram, Loader2, MapPin,
+  Phone, RefreshCw, Search, Sparkles, Trash2, Twitter, Youtube,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { requireBrowserUser } from "@/lib/auth-guards";
 import { PageErrorComponent } from "@/components/page-error-boundary";
+
+function NotFound() {
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-2xl font-bold">الوظيفة غير موجودة</h1>
+        <p className="mt-2 text-sm text-muted-foreground">قد تكون حُذفت أو أن الرابط غير صحيح.</p>
+        <Link to="/library" className="mt-4 inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">العودة للمكتبة</Link>
+      </div>
+    </main>
+  );
+}
 
 export const Route = createFileRoute("/library/$jobId")({
   beforeLoad: requireBrowserUser,
   component: JobDetailPage,
   errorComponent: PageErrorComponent,
+  notFoundComponent: NotFound,
 });
 
 function JobDetailPage() {
