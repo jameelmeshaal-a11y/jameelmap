@@ -13,7 +13,7 @@ import { ArrowRight, Download, FileText, Home, Loader2, Database, Trash2, StopCi
 import { PageErrorComponent, SectionErrorBoundary } from "@/components/page-error-boundary";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/library")({
+export const Route = createFileRoute("/library/")({
   beforeLoad: requireBrowserUser,
   component: LibraryPage,
   errorComponent: PageErrorComponent,
