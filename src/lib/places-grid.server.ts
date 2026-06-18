@@ -129,25 +129,31 @@ async function searchTextOnce(city: string, country: string, languageCode: strin
 }
 
 export async function geocodeCity(city: string, country: string): Promise<GeocodeResult | null> {
-  const tryWith = async (lang: string) => {
+  const tryWith = async (lang: string): Promise<{ result: GeocodeResult | null; rateLimited: boolean }> => {
     try {
-      return await searchTextOnce(city, country, lang);
+      return { result: await searchTextOnce(city, country, lang), rateLimited: false };
     } catch (e) {
       if ((e as Error & { code?: string }).code === "RATE_LIMITED") {
         await new Promise((r) => setTimeout(r, 500));
         try {
-          return await searchTextOnce(city, country, lang);
+          return { result: await searchTextOnce(city, country, lang), rateLimited: false };
         } catch {
-          return null;
+          return { result: null, rateLimited: true };
         }
       }
-      return null;
+      return { result: null, rateLimited: false };
     }
   };
-  // جرّب بالإنجليزية أولاً ثم العربية كبديل
   const en = await tryWith("en");
-  if (en) return en;
-  return await tryWith("ar");
+  if (en.result) return en.result;
+  const ar = await tryWith("ar");
+  if (ar.result) return ar.result;
+  if (en.rateLimited || ar.rateLimited) {
+    const err = new Error("حدّ معدّل موصل Google Maps مُستنفد. أعد المحاولة لاحقاً أو اربط مفتاح Google Maps خاص بك.");
+    (err as Error & { code?: string }).code = "RATE_LIMITED";
+    throw err;
+  }
+  return null;
 }
 
 // ---------------- Cell tiling ----------------
