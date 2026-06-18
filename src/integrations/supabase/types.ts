@@ -41,6 +41,48 @@ export type Database = {
         }
         Relationships: []
       }
+      plans: {
+        Row: {
+          created_at: string
+          features: Json
+          id: string
+          is_active: boolean
+          jobs_per_month: number
+          name: string
+          name_ar: string
+          price_sar: number
+          results_per_month: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          features?: Json
+          id: string
+          is_active?: boolean
+          jobs_per_month?: number
+          name: string
+          name_ar: string
+          price_sar?: number
+          results_per_month?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          features?: Json
+          id?: string
+          is_active?: boolean
+          jobs_per_month?: number
+          name?: string
+          name_ar?: string
+          price_sar?: number
+          results_per_month?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scrape_job_cities: {
         Row: {
           city: string
@@ -253,6 +295,86 @@ export type Database = {
           data?: Json
           expires_at?: string
           result_count?: number
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          cancel_at: string | null
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          plan_id: string
+          provider: string | null
+          provider_subscription_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          plan_id: string
+          provider?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          plan_id?: string
+          provider?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usage_counters: {
+        Row: {
+          created_at: string
+          id: string
+          jobs_used: number
+          month: string
+          results_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          jobs_used?: number
+          month: string
+          results_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          jobs_used?: number
+          month?: string
+          results_used?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
