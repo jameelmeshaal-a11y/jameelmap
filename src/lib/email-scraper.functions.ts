@@ -39,6 +39,13 @@ export const scrapeJobEmails = createServerFn({ method: "POST" })
             email: r.primary,
             all_emails: r.all.join("; "),
             email_scraped_at: now,
+            instagram: r.socials.instagram || null,
+            twitter: r.socials.twitter || null,
+            facebook: r.socials.facebook || null,
+            tiktok: r.socials.tiktok || null,
+            snapchat: r.socials.snapchat || null,
+            youtube: r.socials.youtube || null,
+            whatsapp: r.socials.whatsapp || null,
           })
           .eq("id", row.id as string);
       } catch {
