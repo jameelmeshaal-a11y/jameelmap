@@ -50,6 +50,13 @@ export const startScrape = createServerFn({ method: "POST" })
       }
     }
 
+    // 1b) فحص حدّ الخطة الشهري (يطبّق على غير الأدمن)
+    if (!isAdmin) {
+      const { checkAndReserveJobQuota } = await import("@/lib/billing.server");
+      const q = await checkAndReserveJobQuota(userId);
+      if (!q.allowed) throw new Error(q.reason ?? "تجاوزت حدود خطتك الشهرية.");
+    }
+
     const { data: job, error } = await supabaseAdmin
       .from("scrape_jobs")
       .insert({

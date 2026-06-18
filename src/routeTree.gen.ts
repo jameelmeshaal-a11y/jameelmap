@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -27,6 +28,11 @@ import { Route as ApiPublicDownloadJobIdRouteImport } from './routes/api/public/
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/reset-password': typeof ResetPasswordRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/library/': typeof LibraryIndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/bootstrap': typeof BootstrapRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/reset-password': typeof ResetPasswordRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/library': typeof LibraryIndexRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/library': typeof LibraryRouteWithChildren
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/reset-password': typeof ResetPasswordRoute
   '/library/$jobId': typeof LibraryJobIdRoute
   '/library/': typeof LibraryIndexRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/library'
     | '/login'
+    | '/pricing'
     | '/reset-password'
     | '/library/$jobId'
     | '/library/'
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/bootstrap'
     | '/forgot-password'
     | '/login'
+    | '/pricing'
     | '/reset-password'
     | '/library/$jobId'
     | '/library'
@@ -184,6 +195,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/library'
     | '/login'
+    | '/pricing'
     | '/reset-password'
     | '/library/$jobId'
     | '/library/'
@@ -201,6 +213,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LibraryRoute: typeof LibraryRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicDownloadAllRoute: typeof ApiPublicDownloadAllRoute
   ApiPublicDownloadSelectedRoute: typeof ApiPublicDownloadSelectedRoute
@@ -216,6 +229,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -332,6 +352,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LibraryRoute: LibraryRouteWithChildren,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicDownloadAllRoute: ApiPublicDownloadAllRoute,
   ApiPublicDownloadSelectedRoute: ApiPublicDownloadSelectedRoute,

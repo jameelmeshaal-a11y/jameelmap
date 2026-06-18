@@ -79,23 +79,58 @@ function normalizeUrl(raw: string): string {
 export interface EmailScrapeResult {
   primary: string;
   all: string[];
+  socials: SocialLinks;
+}
+
+export interface SocialLinks {
+  instagram: string;
+  twitter: string;
+  facebook: string;
+  tiktok: string;
+  snapchat: string;
+  youtube: string;
+  whatsapp: string;
+}
+
+const SOCIAL_PATTERNS: { key: keyof SocialLinks; rx: RegExp }[] = [
+  { key: "instagram", rx: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9_.]+)/i },
+  { key: "twitter", rx: /https?:\/\/(?:www\.)?(?:twitter|x)\.com\/([A-Za-z0-9_]+)/i },
+  { key: "facebook", rx: /https?:\/\/(?:www\.)?facebook\.com\/([A-Za-z0-9.\-_/]+)/i },
+  { key: "tiktok", rx: /https?:\/\/(?:www\.)?tiktok\.com\/(@[A-Za-z0-9_.]+)/i },
+  { key: "snapchat", rx: /https?:\/\/(?:www\.)?snapchat\.com\/add\/([A-Za-z0-9_.\-]+)/i },
+  { key: "youtube", rx: /https?:\/\/(?:www\.)?youtube\.com\/(?:@[A-Za-z0-9_.\-]+|channel\/[A-Za-z0-9_\-]+|c\/[A-Za-z0-9_\-]+|user\/[A-Za-z0-9_\-]+)/i },
+  { key: "whatsapp", rx: /https?:\/\/(?:wa\.me|api\.whatsapp\.com\/send)[^\s"'<>]*/i },
+];
+
+function extractSocials(html: string): SocialLinks {
+  const out: SocialLinks = { instagram: "", twitter: "", facebook: "", tiktok: "", snapchat: "", youtube: "", whatsapp: "" };
+  if (!html) return out;
+  for (const { key, rx } of SOCIAL_PATTERNS) {
+    if (out[key]) continue;
+    const m = html.match(rx);
+    if (m) out[key] = m[0];
+  }
+  return out;
 }
 
 export async function scrapeEmailsFromSite(website: string): Promise<EmailScrapeResult> {
+  const empty: SocialLinks = { instagram: "", twitter: "", facebook: "", tiktok: "", snapchat: "", youtube: "", whatsapp: "" };
   const base = normalizeUrl(website);
-  if (!base) return { primary: "", all: [] };
+  if (!base) return { primary: "", all: [], socials: empty };
 
   const paths = ["/", "/contact", "/contact-us", "/about", "/about-us", "/ar/contact", "/en/contact"];
   const pages = await Promise.allSettled(paths.map((p) => fetchPage(base + p)));
 
   const all = new Set<string>();
+  const socials: SocialLinks = { ...empty };
   for (const pg of pages) {
     if (pg.status !== "fulfilled") continue;
     for (const e of extractEmails(pg.value)) all.add(e);
+    const s = extractSocials(pg.value);
+    (Object.keys(s) as (keyof SocialLinks)[]).forEach((k) => { if (!socials[k] && s[k]) socials[k] = s[k]; });
   }
 
   const arr = [...all];
-  // الأفضلية: ما يحوي اسم الدومين الأصلي
   let host = "";
   try { host = new URL(base).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
   arr.sort((a, b) => {
@@ -104,5 +139,6 @@ export async function scrapeEmailsFromSite(website: string): Promise<EmailScrape
     return bMatch - aMatch;
   });
 
-  return { primary: arr[0] ?? "", all: arr };
+  return { primary: arr[0] ?? "", all: arr, socials };
 }
+
