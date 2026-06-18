@@ -2,6 +2,46 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+export const loginWithPassword = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({
+      email: z.string().email().max(200),
+      password: z.string().min(1).max(72),
+    }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabaseAuth = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_PUBLISHABLE_KEY!,
+      {
+        auth: {
+          storage: undefined,
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      },
+    );
+
+    const { data: authData, error } = await supabaseAuth.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (error || !authData.session) {
+      throw new Error(error?.message ?? "تعذر تسجيل الدخول");
+    }
+
+    return {
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+      expires_at: authData.session.expires_at,
+      expires_in: authData.session.expires_in,
+      token_type: authData.session.token_type,
+      user: authData.session.user,
+    };
+  });
+
 export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
