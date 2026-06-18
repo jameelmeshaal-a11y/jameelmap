@@ -164,7 +164,17 @@ async function processCity(
     return { city, saved: 0, error: "stopped" };
   }
 
-  const geo = await geocodeCity(city, country);
+  let geo;
+  try {
+    geo = await geocodeCity(city, country);
+  } catch (e) {
+    const msg = (e as Error).message || "تعذّر تحديد الإحداثيات";
+    await updateCity(jobId, city, {
+      status: "failed", current_step: "تعذّر تحديد الإحداثيات (حد معدّل)",
+      error_message: msg, progress: 100,
+    });
+    return { city, saved: 0, error: "rate_limited" };
+  }
   if (!geo) {
     await updateCity(jobId, city, {
       status: "failed", current_step: "تعذّر تحديد الإحداثيات",
