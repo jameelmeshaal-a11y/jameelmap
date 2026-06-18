@@ -78,54 +78,76 @@ function authHeaders(): Record<string, string> {
   };
 }
 
-// ---------------- Geocoding ----------------
-export async function geocodeCity(city: string, country: string): Promise<GeocodeResult | null> {
-  try {
-    const q = encodeURIComponent(`${city}, ${country}`);
-    const res = await fetch(`${GATEWAY_URL}/maps/api/geocode/json?address=${q}`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) return null;
-    const j = (await res.json()) as {
-      results?: Array<{
-        geometry?: {
-          location?: { lat: number; lng: number };
-          viewport?: {
-            southwest: { lat: number; lng: number };
-            northeast: { lat: number; lng: number };
-          };
-          bounds?: {
-            southwest: { lat: number; lng: number };
-            northeast: { lat: number; lng: number };
-          };
-        };
-      }>;
-    };
-    const r = j.results?.[0];
-    if (!r?.geometry?.location) return null;
-    const vp = r.geometry.bounds ?? r.geometry.viewport;
-    if (!vp) {
-      // إن لم يوجد viewport، اصنع مربعاً ~10كم حول المركز
-      const lat = r.geometry.location.lat;
-      const lng = r.geometry.location.lng;
-      return {
-        center: { lat, lng },
-        viewport: {
-          low: { latitude: lat - 0.05, longitude: lng - 0.05 },
-          high: { latitude: lat + 0.05, longitude: lng + 0.05 },
-        },
-      };
-    }
-    return {
-      center: { lat: r.geometry.location.lat, lng: r.geometry.location.lng },
-      viewport: {
-        low: { latitude: vp.southwest.lat, longitude: vp.southwest.lng },
-        high: { latitude: vp.northeast.lat, longitude: vp.northeast.lng },
-      },
-    };
-  } catch {
-    return null;
+// ---------------- Geocoding (via Places API New: searchText) ----------------
+// نتجنّب Geocoding API القديم (محظور بحدّ معدّل 24س على بعض الموصلات)
+// ونستخدم places:searchText الذي يعيد location + viewport مباشرةً.
+async function searchTextOnce(city: string, country: string, languageCode: string): Promise<GeocodeResult | null> {
+  const res = await fetch(`${GATEWAY_URL}/places/v1/places:searchText`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(),
+      "X-Goog-FieldMask": "places.location,places.viewport",
+    },
+    body: JSON.stringify({
+      textQuery: `${city}, ${country}`,
+      languageCode,
+      pageSize: 1,
+    }),
+  });
+  if (res.status === 429) {
+    const err = new Error("RATE_LIMITED");
+    (err as Error & { code?: string }).code = "RATE_LIMITED";
+    throw err;
   }
+  if (!res.ok) return null;
+  const j = (await res.json()) as {
+    places?: Array<{
+      location?: { latitude: number; longitude: number };
+      viewport?: {
+        low: { latitude: number; longitude: number };
+        high: { latitude: number; longitude: number };
+      };
+    }>;
+  };
+  const p = j.places?.[0];
+  if (!p?.location) return null;
+  const lat = p.location.latitude;
+  const lng = p.location.longitude;
+  if (p.viewport?.low && p.viewport?.high) {
+    return {
+      center: { lat, lng },
+      viewport: { low: p.viewport.low, high: p.viewport.high },
+    };
+  }
+  return {
+    center: { lat, lng },
+    viewport: {
+      low: { latitude: lat - 0.05, longitude: lng - 0.05 },
+      high: { latitude: lat + 0.05, longitude: lng + 0.05 },
+    },
+  };
+}
+
+export async function geocodeCity(city: string, country: string): Promise<GeocodeResult | null> {
+  const tryWith = async (lang: string) => {
+    try {
+      return await searchTextOnce(city, country, lang);
+    } catch (e) {
+      if ((e as Error & { code?: string }).code === "RATE_LIMITED") {
+        await new Promise((r) => setTimeout(r, 500));
+        try {
+          return await searchTextOnce(city, country, lang);
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+  };
+  // جرّب بالإنجليزية أولاً ثم العربية كبديل
+  const en = await tryWith("en");
+  if (en) return en;
+  return await tryWith("ar");
 }
 
 // ---------------- Cell tiling ----------------
