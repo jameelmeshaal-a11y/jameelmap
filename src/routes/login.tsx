@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { loginWithPassword } from "@/lib/auth.functions";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,6 +58,7 @@ function translateAuthError(msg: string): string {
 }
 
 function LoginPage() {
+  const backendLogin = useServerFn(loginWithPassword);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -84,7 +87,15 @@ function LoginPage() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      let { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error && /failed to fetch|fetch/i.test(error.message)) {
+        const session = await backendLogin({ data: { email, password } });
+        const restored = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        error = restored.error;
+      }
       setLoading(false);
       if (error) {
         bumpAttempts();
