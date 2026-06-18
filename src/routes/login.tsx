@@ -87,8 +87,11 @@ function LoginPage() {
     }
     setLoading(true);
     try {
-      let { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error && /failed to fetch|fetch/i.test(error.message)) {
+      const direct = await supabase.auth.signInWithPassword({ email, password }).catch((err) => ({
+        error: err instanceof Error ? err : new Error("Failed to fetch"),
+      }));
+      let error = direct.error;
+      if (error && /failed to fetch|fetch|network/i.test(error.message)) {
         const session = await backendLogin({ data: { email, password } });
         const restored = await supabase.auth.setSession({
           access_token: session.access_token,
