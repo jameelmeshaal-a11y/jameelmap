@@ -100,19 +100,13 @@ function LoginPage() {
     }
     setLoading(true);
     try {
-      const direct = await supabase.auth.signInWithPassword({ email, password }).catch((err) => ({
-        error: err instanceof Error ? err : new Error("Failed to fetch"),
-      }));
-      let error = direct.error;
-      if (error && /failed to fetch|fetch|network/i.test(error.message)) {
-        const session = await backendLogin({ data: { email, password } });
-        localStorage.setItem(getAuthStorageKey(), JSON.stringify(session));
-        const restored = await supabase.auth.setSession({
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-        });
-        error = restored.error;
-      }
+      const session = await backendLogin({ data: { email, password } });
+      localStorage.setItem(getAuthStorageKey(), JSON.stringify(session));
+      const restored = await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      }).catch(() => ({ error: null }));
+      const error = restored.error;
       setLoading(false);
       if (error) {
         bumpAttempts();
