@@ -35,6 +35,10 @@ export const loginWithPassword = createServerFn({ method: "POST" })
     return {
       access_token: authData.session.access_token,
       refresh_token: authData.session.refresh_token,
+      expires_at: authData.session.expires_at,
+      expires_in: authData.session.expires_in,
+      token_type: authData.session.token_type,
+      user: authData.session.user,
     };
   });
 
