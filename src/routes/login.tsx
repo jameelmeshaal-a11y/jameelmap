@@ -23,6 +23,19 @@ const ATTEMPTS_KEY = "login_attempts";
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 30_000;
 
+function getAuthStorageKey(): string {
+  const explicit = import.meta.env.VITE_SUPABASE_AUTH_STORAGE_KEY;
+  if (explicit) return explicit;
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  if (projectId) return `sb-${projectId}-auth-token`;
+  try {
+    const host = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split(".")[0];
+    return `sb-${host}-auth-token`;
+  } catch {
+    return "sb-auth-token";
+  }
+}
+
 function getLockoutRemaining(): number {
   if (typeof window === "undefined") return 0;
   try {
@@ -93,6 +106,7 @@ function LoginPage() {
       let error = direct.error;
       if (error && /failed to fetch|fetch|network/i.test(error.message)) {
         const session = await backendLogin({ data: { email, password } });
+        localStorage.setItem(getAuthStorageKey(), JSON.stringify(session));
         const restored = await supabase.auth.setSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
