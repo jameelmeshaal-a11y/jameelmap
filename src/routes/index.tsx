@@ -53,17 +53,33 @@ function HomePage() {
   const stopMut = useMutation({ mutationFn: (id: string) => stopFn({ data: { jobId: id } }), onError: (e: Error) => toast.error(`تعذّر الإيقاف: ${e.message}`) });
 
   const citiesMut = useMutation({
-    mutationFn: (vars: { force: boolean }) =>
-      fetchCitiesFn({ data: { country: country.trim(), forceRefresh: vars.force } }),
+    mutationFn: async (vars: { force: boolean }) => {
+      // تحقّق من وجود الجلسة قبل الإرسال — تجنّب 401 صامت
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        await supabase.auth.signOut().catch(() => {});
+        window.location.href = "/login";
+        throw new Error("انتهت الجلسة");
+      }
+      return fetchCitiesFn({ data: { country: country.trim(), forceRefresh: vars.force } });
+    },
     onSuccess: (res) => {
       if (res.error) { setCitiesError(res.error); setCities([]); setSelectedCities([]); setCachedAt(null); return; }
       setCitiesError(null);
       setCities(res.cities);
       setCachedAt(res.cachedAt ?? null);
-      // افتراضياً: حدّد أول 10
       setSelectedCities(res.cities.slice(0, 10).map((c) => c.name));
     },
-    onError: (e) => { setCitiesError((e as Error).message); setCities([]); setSelectedCities([]); },
+    onError: async (e) => {
+      const msg = (e as Error).message;
+      if (msg.includes("Unauthorized") || msg.includes("انتهت الجلسة")) {
+        toast.error("انتهت جلستك. سجّل الدخول من جديد.");
+        await supabase.auth.signOut().catch(() => {});
+        window.location.href = "/login";
+        return;
+      }
+      setCitiesError(msg); setCities([]); setSelectedCities([]);
+    },
   });
 
   const startMut = useMutation({
