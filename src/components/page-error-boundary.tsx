@@ -31,9 +31,9 @@ function PageFallback({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 /** يُمرَّر إلى createFileRoute({ errorComponent: PageErrorComponent }) */
-export function PageErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+export function PageErrorComponent({ error, reset }: import("@tanstack/react-router").ErrorComponentProps) {
   console.error("[page-error]", error);
-  return <PageFallback error={error} reset={reset} />;
+  return <PageFallback error={error as Error} reset={reset} />;
 }
 
 function SectionFallback({ error, resetErrorBoundary }: FallbackProps) {
