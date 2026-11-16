@@ -9,56 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as LibraryRouteImport } from './routes/library'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as BootstrapRouteImport } from './routes/bootstrap'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as BootstrapRouteImport } from './routes/bootstrap'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LibraryRouteImport } from './routes/library'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LibraryIndexRouteImport } from './routes/library.index'
 import { Route as LibraryJobIdRouteImport } from './routes/library.$jobId'
-import { Route as ApiPublicDownloadSelectedRouteImport } from './routes/api/public/download-selected'
 import { Route as ApiPublicDownloadAllRouteImport } from './routes/api/public/download-all'
-import { Route as ApiPublicRunJobJobIdRouteImport } from './routes/api/public/run-job.$jobId'
-import { Route as ApiPublicReenrichJobIdRouteImport } from './routes/api/public/reenrich.$jobId'
+import { Route as ApiPublicDownloadSelectedRouteImport } from './routes/api/public/download-selected'
 import { Route as ApiPublicDownloadJobIdRouteImport } from './routes/api/public/download.$jobId'
+import { Route as ApiPublicReenrichJobIdRouteImport } from './routes/api/public/reenrich.$jobId'
+import { Route as ApiPublicRunJobJobIdRouteImport } from './routes/api/public/run-job.$jobId'
 
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryRoute = LibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BootstrapRoute = BootstrapRouteImport.update({
-  id: '/bootstrap',
-  path: '/bootstrap',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -66,9 +36,39 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const BootstrapRoute = BootstrapRouteImport.update({
+  id: '/bootstrap',
+  path: '/bootstrap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LibraryIndexRoute = LibraryIndexRouteImport.update({
@@ -81,20 +81,20 @@ const LibraryJobIdRoute = LibraryJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => LibraryRoute,
 } as any)
+const ApiPublicDownloadAllRoute = ApiPublicDownloadAllRouteImport.update({
+  id: '/api/public/download-all',
+  path: '/api/public/download-all',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicDownloadSelectedRoute =
   ApiPublicDownloadSelectedRouteImport.update({
     id: '/api/public/download-selected',
     path: '/api/public/download-selected',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicDownloadAllRoute = ApiPublicDownloadAllRouteImport.update({
-  id: '/api/public/download-all',
-  path: '/api/public/download-all',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicRunJobJobIdRoute = ApiPublicRunJobJobIdRouteImport.update({
-  id: '/api/public/run-job/$jobId',
-  path: '/api/public/run-job/$jobId',
+const ApiPublicDownloadJobIdRoute = ApiPublicDownloadJobIdRouteImport.update({
+  id: '/api/public/download/$jobId',
+  path: '/api/public/download/$jobId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicReenrichJobIdRoute = ApiPublicReenrichJobIdRouteImport.update({
@@ -102,9 +102,9 @@ const ApiPublicReenrichJobIdRoute = ApiPublicReenrichJobIdRouteImport.update({
   path: '/api/public/reenrich/$jobId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicDownloadJobIdRoute = ApiPublicDownloadJobIdRouteImport.update({
-  id: '/api/public/download/$jobId',
-  path: '/api/public/download/$jobId',
+const ApiPublicRunJobJobIdRoute = ApiPublicRunJobJobIdRouteImport.update({
+  id: '/api/public/run-job/$jobId',
+  path: '/api/public/run-job/$jobId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -237,53 +237,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library': {
-      id: '/library'
-      path: '/library'
-      fullPath: '/library'
-      preLoaderRoute: typeof LibraryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bootstrap': {
-      id: '/bootstrap'
-      path: '/bootstrap'
-      fullPath: '/bootstrap'
-      preLoaderRoute: typeof BootstrapRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -293,11 +251,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/bootstrap': {
+      id: '/bootstrap'
+      path: '/bootstrap'
+      fullPath: '/bootstrap'
+      preLoaderRoute: typeof BootstrapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/library/': {
@@ -314,13 +314,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryJobIdRouteImport
       parentRoute: typeof LibraryRoute
     }
-    '/api/public/download-selected': {
-      id: '/api/public/download-selected'
-      path: '/api/public/download-selected'
-      fullPath: '/api/public/download-selected'
-      preLoaderRoute: typeof ApiPublicDownloadSelectedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/download-all': {
       id: '/api/public/download-all'
       path: '/api/public/download-all'
@@ -328,11 +321,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDownloadAllRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/run-job/$jobId': {
-      id: '/api/public/run-job/$jobId'
-      path: '/api/public/run-job/$jobId'
-      fullPath: '/api/public/run-job/$jobId'
-      preLoaderRoute: typeof ApiPublicRunJobJobIdRouteImport
+    '/api/public/download-selected': {
+      id: '/api/public/download-selected'
+      path: '/api/public/download-selected'
+      fullPath: '/api/public/download-selected'
+      preLoaderRoute: typeof ApiPublicDownloadSelectedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/download/$jobId': {
+      id: '/api/public/download/$jobId'
+      path: '/api/public/download/$jobId'
+      fullPath: '/api/public/download/$jobId'
+      preLoaderRoute: typeof ApiPublicDownloadJobIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/reenrich/$jobId': {
@@ -342,11 +342,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicReenrichJobIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/download/$jobId': {
-      id: '/api/public/download/$jobId'
-      path: '/api/public/download/$jobId'
-      fullPath: '/api/public/download/$jobId'
-      preLoaderRoute: typeof ApiPublicDownloadJobIdRouteImport
+    '/api/public/run-job/$jobId': {
+      id: '/api/public/run-job/$jobId'
+      path: '/api/public/run-job/$jobId'
+      fullPath: '/api/public/run-job/$jobId'
+      preLoaderRoute: typeof ApiPublicRunJobJobIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
